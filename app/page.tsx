@@ -90,7 +90,7 @@ const RELICS: Array<{
     id: 'autoHarvester',
     name: '自动收割机',
     branch: '黄金植物',
-    description: '自动收获成熟植物，并提高全场植物生长速率。',
+    description: '自动收获成熟植物，自动金币增加40%，并提高全场植物生长速率。',
     baseCost: 5,
   },
   {
@@ -163,7 +163,7 @@ const EMPTY_HARVEST_STATS: HarvestStats = {
   maodieProgress: 0,
 };
 
-const MAX_PLANTS = 12;
+const MAX_PLANTS = 18;
 const MIN_HARVEST_MS = 300;
 
 function makeInitialPlants(): Plant[] {
@@ -275,7 +275,7 @@ function relicEffect(id: RelicId, level: number) {
   const shownLevel = Math.max(1, level);
   switch (id) {
     case 'autoHarvester':
-      return `自动收获；植物生长速率 +${40 + (shownLevel - 1) * 20}%`;
+      return `自动收获金币 +40%；植物生长速率 +${40 + (shownLevel - 1) * 20}%`;
     case 'goldenDrop':
       return `植物金币 +${shownLevel * 20}%，植物生长速率 +${20 + (shownLevel - 1) * 6}%`;
     case 'fertilizer':
@@ -424,6 +424,10 @@ export default function Home() {
 
       if (mode === 'manual' && relicLevels.midasHand > 0) {
         plantIncome *= 2.5 + (relicLevels.midasHand - 1) * 0.5;
+      }
+
+      if (mode === 'auto' && relicLevels.autoHarvester > 0) {
+        plantIncome *= 1.4;
       }
 
       const critChance = Math.min(
