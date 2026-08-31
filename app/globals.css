@@ -210,6 +210,13 @@ body {
 .plant-card.is-golden svg {
   @apply text-[#a66a00];
 }
+.plant-card.is-diamond {
+  @apply border-[#218ea2] bg-[#c9f1f2] shadow-[inset_0_0_0_3px_#54c7d2,0_0_22px_#49c4dc88];
+  animation: diamond-pulse 0.8s ease-in-out infinite alternate;
+}
+.plant-card.is-diamond svg {
+  @apply text-[#08788e];
+}
 .plant-card.is-stored {
   @apply border-[#8d4d9b] bg-[#ead9ec] shadow-[inset_0_0_0_2px_#a862b4];
   animation: stored-pulse 1.1s ease-in-out infinite alternate;
@@ -222,8 +229,22 @@ body {
   @apply border-[#d18a00] bg-[#ffe29a] shadow-[inset_0_0_0_3px_#f1ae24,0_0_24px_#f1ae24aa];
   animation: stored-max-pulse 0.55s ease-in-out infinite alternate;
 }
+.plant-card.stored-ultimate {
+  @apply border-[#631515] bg-[#8f2020] text-white shadow-[inset_0_0_0_3px_#d65b4b,0_0_28px_#7c1010bb];
+  animation: stored-ultimate-pulse 0.45s ease-in-out infinite alternate;
+}
+.plant-card.stored-ultimate .growth-value,
+.plant-card.stored-ultimate .plot-number {
+  @apply text-[#ffd4c8];
+}
 .golden-mark {
   @apply absolute right-2 top-2 flex items-center gap-1 bg-[#bb7b05] px-1.5 py-0.5 font-mono text-[9px] font-bold text-white;
+}
+.diamond-mark {
+  @apply absolute right-2 top-2 flex items-center gap-1 bg-[#08788e] px-1.5 py-0.5 font-mono text-[9px] font-bold text-white;
+}
+.diamond-mark svg {
+  @apply mb-0 size-3 text-white;
 }
 .golden-mark svg {
   @apply mb-0 size-3 text-white;
@@ -382,6 +403,45 @@ body {
 .relic-progress {
   @apply mb-2 font-mono text-[9px] text-primary;
 }
+.fusion-section {
+  @apply mt-6 border-t-2 border-foreground/25 pt-5;
+}
+.fusion-heading {
+  @apply mb-3 flex flex-wrap items-end justify-between gap-2;
+}
+.fusion-heading h3 {
+  @apply flex items-center gap-2 text-xl font-black;
+}
+.fusion-heading h3 svg {
+  @apply size-5 text-[#9e3b31];
+}
+.fusion-heading > p {
+  @apply max-w-md text-xs text-muted-foreground;
+}
+.fusion-grid {
+  @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-4;
+}
+.fusion-card {
+  @apply flex min-h-64 flex-col border border-[#7c463d] bg-[#f0ddd0] p-3 shadow-[3px_3px_0_#7c463d];
+}
+.fusion-card.is-fused {
+  @apply border-[#963a2e] bg-[#e9c5b3] shadow-[inset_0_0_0_2px_#c66d5b,3px_3px_0_#7c2820];
+}
+.fusion-materials {
+  @apply flex flex-wrap gap-1;
+}
+.fusion-materials span {
+  @apply bg-[#40251f] px-1.5 py-1 font-mono text-[8px] font-bold text-[#ffe1cf];
+}
+.fusion-card h4 {
+  @apply mt-3 text-lg font-black text-[#70251e];
+}
+.fusion-card > p {
+  @apply my-2 flex-1 text-[11px] leading-relaxed text-[#64483f];
+}
+.fusion-card small {
+  @apply mb-2 font-mono text-[9px] font-bold text-[#08788e];
+}
 .shop-footer {
   @apply mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-foreground/20 pt-4;
 }
@@ -409,6 +469,18 @@ body {
   to {
     filter: saturate(1.65) brightness(1.16);
     transform: translateY(-3px) scale(1.015);
+  }
+}
+@keyframes stored-ultimate-pulse {
+  to {
+    filter: saturate(1.35) brightness(1.14);
+    transform: translateY(-3px) scale(1.02);
+  }
+}
+@keyframes diamond-pulse {
+  to {
+    filter: brightness(1.12) saturate(1.25);
+    transform: translateY(-2px);
   }
 }
 @keyframes urgent-pulse {

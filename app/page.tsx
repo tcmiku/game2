@@ -27,6 +27,7 @@ type Plant = {
   growth: number;
   level: number;
   golden: boolean;
+  diamond: boolean;
   storedMultiplier: number;
   ripeSince: number | null;
   lastHarvestAt: number;
@@ -50,11 +51,19 @@ type RelicId =
   | 'bigDog'
   | 'maodie';
 
+type FusedRelicId =
+  | 'goldenHarvester'
+  | 'santiago'
+  | 'megaCrit'
+  | 'catDog';
+
 type RelicLevels = Record<RelicId, number>;
+type FusedRelics = Record<FusedRelicId, boolean>;
 type HarvestStats = {
   total: number;
   goldenProgress: number;
   fragments: number;
+  diamondFragments: number;
   bigDogProgress: number;
   maodieProgress: number;
 };
@@ -65,6 +74,8 @@ const TOTAL_STAGES = TOTAL_CHAPTERS * STAGES_PER_CHAPTER;
 const SHOP_UNLOCK_STAGE = STAGES_PER_CHAPTER * 2;
 const MAX_RELIC_SLOTS = 4;
 const GOLDEN_FRAGMENT_HARVESTS = 100;
+const FUSION_UNLOCK_STAGE = 20;
+const DIAMOND_FRAGMENT_REQUIREMENT = 4;
 
 const STAGES = Array.from({ length: TOTAL_STAGES }, (_, index) => {
   const stage = index + 1;
@@ -145,6 +156,38 @@ const RELICS: Array<{
   },
 ];
 
+const FUSIONS: Array<{
+  id: FusedRelicId;
+  name: string;
+  materials: [RelicId, RelicId];
+  description: string;
+}> = [
+  {
+    id: 'goldenHarvester',
+    name: '黄金收割机',
+    materials: ['autoHarvester', 'goldenDrop'],
+    description: '保留两件遗物效果；收割黄金植物产生钻石碎片，4枚可升级一株钻石植物。',
+  },
+  {
+    id: 'santiago',
+    name: '圣地亚哥',
+    materials: ['fertilizer', 'midasHand'],
+    description: '跳过生长阶段；蓄积新增16倍阶段，达到上限时自动收获。',
+  },
+  {
+    id: 'megaCrit',
+    name: '大爆特爆',
+    materials: ['infinityBlade', 'critRing'],
+    description: '取消暴击次数限制；每次暴击后，下一次暴击概率变为当前的80%。',
+  },
+  {
+    id: 'catDog',
+    name: '猫狗大战',
+    materials: ['bigDog', 'maodie'],
+    description: '收获需求减半且一次影响3株植物；最小收获间隔可降至0.1秒。',
+  },
+];
+
 const EMPTY_RELIC_LEVELS: RelicLevels = {
   autoHarvester: 0,
   goldenDrop: 0,
@@ -156,16 +199,25 @@ const EMPTY_RELIC_LEVELS: RelicLevels = {
   maodie: 0,
 };
 
+const EMPTY_FUSED_RELICS: FusedRelics = {
+  goldenHarvester: false,
+  santiago: false,
+  megaCrit: false,
+  catDog: false,
+};
+
 const EMPTY_HARVEST_STATS: HarvestStats = {
   total: 0,
   goldenProgress: 0,
   fragments: 0,
+  diamondFragments: 0,
   bigDogProgress: 0,
   maodieProgress: 0,
 };
 
 const MAX_PLANTS = 18;
 const MIN_HARVEST_MS = 300;
+const FUSED_MIN_HARVEST_MS = 100;
 
 function makeInitialPlants(): Plant[] {
   return [
@@ -174,6 +226,7 @@ function makeInitialPlants(): Plant[] {
       growth: 45,
       level: 1,
       golden: false,
+      diamond: false,
       storedMultiplier: 1,
       ripeSince: null,
       lastHarvestAt: 0,
@@ -193,6 +246,12 @@ function randomInteger(min: number, max: number) {
 
 function randomIndex(length: number) {
   return Math.floor(Math.random() * length);
+}
+
+function randomUniqueIndices(length: number, count: number) {
+  return Array.from({ length }, (_, index) => index)
+    .sort(() => Math.random() - 0.5)
+    .slice(0, Math.min(length, count));
 }
 
 function rollBossModifier(plants: Plant[]): BossModifier {
@@ -256,8 +315,14 @@ function fertilizerCap(level: number) {
   return 2;
 }
 
-function drawRelicOffers(levels: RelicLevels) {
+function occupiedRelicSlots(levels: RelicLevels, fused: FusedRelics) {
   const ownedCount = Object.values(levels).filter((level) => level > 0).length;
+  const fusedCount = Object.values(fused).filter(Boolean).length;
+  return ownedCount - fusedCount;
+}
+
+function drawRelicOffers(levels: RelicLevels, fused: FusedRelics) {
+  const ownedCount = occupiedRelicSlots(levels, fused);
   const available = RELICS.filter((relic) =>
     ownedCount >= MAX_RELIC_SLOTS
       ? levels[relic.id] > 0 && levels[relic.id] < 6
@@ -309,6 +374,9 @@ export default function Home() {
   const [relicLevels, setRelicLevels] = useState<RelicLevels>({
     ...EMPTY_RELIC_LEVELS,
   });
+  const [fusedRelics, setFusedRelics] = useState<FusedRelics>({
+    ...EMPTY_FUSED_RELICS,
+  });
   const [harvestStats, setHarvestStats] = useState<HarvestStats>({
     ...EMPTY_HARVEST_STATS,
   });
@@ -345,6 +413,8 @@ export default function Home() {
   const relicPurchaseCount = Object.values(relicLevels).filter(
     (level) => level > 0,
   ).length;
+  const fusedRelicCount = Object.values(fusedRelics).filter(Boolean).length;
+  const relicSlotCount = relicPurchaseCount - fusedRelicCount;
   const relicUpgradeCount = Object.values(relicLevels).reduce(
     (total, level) => total + Math.max(0, level - 1),
     0,
@@ -403,6 +473,7 @@ export default function Home() {
     const now = Date.now();
     const idSet = new Set(plantIds);
     let harvested = 0;
+    let goldenHarvests = 0;
     let grossIncome = 0;
     let criticalHits = 0;
 
@@ -417,9 +488,12 @@ export default function Home() {
       }
 
       harvested += 1;
+      if (fusedRelics.goldenHarvester && plant.golden && !plant.diamond) {
+        goldenHarvests += 1;
+      }
       let plantIncome =
         plant.level *
-        (plant.golden ? 2 : 1) *
+        (plant.diamond ? 4 : plant.golden ? 2 : 1) *
         plant.storedMultiplier *
         (1 + relicLevels.goldenDrop * 0.2);
 
@@ -442,21 +516,31 @@ export default function Home() {
         relicLevels.infinityBlade > 0
           ? 2.25 + relicLevels.infinityBlade * 0.35
           : 2;
-      const maxCrits =
-        relicLevels.critRing > 0 ? 1 + relicLevels.critRing * 2 : 1;
-      for (let attempt = 0; attempt < maxCrits; attempt += 1) {
-        if (Math.random() >= critChance) break;
-        plantIncome *= critMultiplier;
-        criticalHits += 1;
-        if (relicLevels.critRing === 0) break;
+      if (fusedRelics.megaCrit) {
+        let rollingChance = critChance;
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          if (Math.random() >= rollingChance) break;
+          plantIncome *= critMultiplier;
+          criticalHits += 1;
+          rollingChance *= 0.8;
+        }
+      } else {
+        const maxCrits =
+          relicLevels.critRing > 0 ? 1 + relicLevels.critRing * 2 : 1;
+        for (let attempt = 0; attempt < maxCrits; attempt += 1) {
+          if (Math.random() >= critChance) break;
+          plantIncome *= critMultiplier;
+          criticalHits += 1;
+          if (relicLevels.critRing === 0) break;
+        }
       }
 
       grossIncome += Math.max(1, Math.round(plantIncome));
       return {
         ...plant,
-        growth: plant.golden ? 100 : 0,
+        growth: plant.golden || fusedRelics.santiago ? 100 : 0,
         storedMultiplier: 1,
-        ripeSince: plant.golden ? now : null,
+        ripeSince: plant.golden || fusedRelics.santiago ? now : null,
         lastHarvestAt: now,
       };
     });
@@ -467,6 +551,22 @@ export default function Home() {
     nextStats.total += harvested;
     const events: string[] = [];
     let directBonus = 0;
+
+    if (fusedRelics.goldenHarvester && goldenHarvests > 0) {
+      nextStats.diamondFragments += goldenHarvests;
+      while (nextStats.diamondFragments >= DIAMOND_FRAGMENT_REQUIREMENT) {
+        const goldenPlants = nextPlants.filter(
+          (plant) => plant.golden && !plant.diamond,
+        );
+        if (goldenPlants.length === 0) break;
+        nextStats.diamondFragments -= DIAMOND_FRAGMENT_REQUIREMENT;
+        const chosen = goldenPlants[randomIndex(goldenPlants.length)];
+        nextPlants = nextPlants.map((plant) =>
+          plant.id === chosen.id ? { ...plant, diamond: true } : plant,
+        );
+        events.push('黄金植物升级为钻石植物');
+      }
+    }
 
     if (relicLevels.goldenDrop > 0) {
       nextStats.goldenProgress += harvested;
@@ -484,6 +584,7 @@ export default function Home() {
               ? {
                   ...plant,
                   golden: true,
+                  diamond: false,
                   growth: 100,
                   ripeSince: now,
                 }
@@ -498,28 +599,40 @@ export default function Home() {
     }
 
     if (relicLevels.bigDog > 0 && nextPlants.length > 0) {
-      const threshold = Math.max(24, 72 - relicLevels.bigDog * 8);
+      const baseThreshold = Math.max(24, 72 - relicLevels.bigDog * 8);
+      const threshold = fusedRelics.catDog
+        ? Math.max(8, Math.floor(baseThreshold / 2))
+        : baseThreshold;
       nextStats.bigDogProgress += harvested;
       while (nextStats.bigDogProgress >= threshold) {
         nextStats.bigDogProgress -= threshold;
-        const chosenIndex = randomIndex(nextPlants.length);
+        const chosenIndices = randomUniqueIndices(
+          nextPlants.length,
+          fusedRelics.catDog ? 3 : 1,
+        );
         nextPlants = nextPlants.map((plant, index) =>
-          index === chosenIndex
+          chosenIndices.includes(index)
             ? { ...plant, level: plant.level + Math.ceil(relicLevels.bigDog / 2) }
             : plant,
         );
-        events.push(`大狗升级第 ${chosenIndex + 1} 株`);
+        events.push(`大狗升级 ${chosenIndices.length} 株植物`);
       }
     }
 
     if (relicLevels.maodie > 0 && nextPlants.length > 0) {
-      const threshold = Math.max(24, 72 - relicLevels.maodie * 8);
+      const baseThreshold = Math.max(24, 72 - relicLevels.maodie * 8);
+      const threshold = fusedRelics.catDog
+        ? Math.max(8, Math.floor(baseThreshold / 2))
+        : baseThreshold;
       nextStats.maodieProgress += harvested;
       while (nextStats.maodieProgress >= threshold) {
         nextStats.maodieProgress -= threshold;
-        const chosenIndex = randomIndex(nextPlants.length);
+        const chosenIndices = randomUniqueIndices(
+          nextPlants.length,
+          fusedRelics.catDog ? 3 : 1,
+        );
         nextPlants = nextPlants.map((plant, index) =>
-          index === chosenIndex
+          chosenIndices.includes(index)
             ? {
                 ...plant,
                 growth: plant.golden
@@ -529,13 +642,15 @@ export default function Home() {
                       plant.growth - Math.max(5, 18 - relicLevels.maodie * 2),
                     ),
                 minHarvestMs: Math.max(
-                  MIN_HARVEST_MS,
+                  fusedRelics.catDog
+                    ? FUSED_MIN_HARVEST_MS
+                    : MIN_HARVEST_MS,
                   plant.minHarvestMs - (120 + relicLevels.maodie * 40),
                 ),
               }
             : plant,
         );
-        events.push(`耄耋影响第 ${chosenIndex + 1} 株`);
+        events.push(`耄耋影响 ${chosenIndices.length} 株植物`);
       }
     }
 
@@ -593,7 +708,7 @@ export default function Home() {
 
       const grownPlants = plantsRef.current.map((plant) => {
         if (isPlantDisabled(plant.id)) return plant;
-        const nextGrowth = plant.golden
+        const nextGrowth = plant.golden || fusedRelics.santiago
           ? 100
           : Math.min(
               100,
@@ -617,7 +732,9 @@ export default function Home() {
         const storedMultiplier =
           storageSteps > 0
             ? Math.min(
-                fertilizerCap(relicLevels.fertilizer),
+                fusedRelics.santiago
+                  ? 16
+                  : fertilizerCap(relicLevels.fertilizer),
                 2 ** storageSteps,
               )
             : plant.storedMultiplier;
@@ -630,13 +747,15 @@ export default function Home() {
       });
 
       plantsRef.current = grownPlants;
-      if (relicLevels.autoHarvester > 0) {
+      if (relicLevels.autoHarvester > 0 || fusedRelics.santiago) {
         const readyIds = grownPlants
           .filter(
             (plant) =>
               !isPlantDisabled(plant.id) &&
               plant.growth >= 100 &&
-              now - plant.lastHarvestAt >= plant.minHarvestMs,
+              now - plant.lastHarvestAt >= plant.minHarvestMs &&
+              (relicLevels.autoHarvester > 0 ||
+                plant.storedMultiplier >= 16),
           )
           .map((plant) => plant.id);
         if (readyIds.length > 0) {
@@ -647,7 +766,7 @@ export default function Home() {
       commitPlants(grownPlants);
     }, 250);
     return () => window.clearInterval(timer);
-  }, [activeBossModifier, naturalRate, relicLevels, status]);
+  }, [activeBossModifier, fusedRelics, naturalRate, relicLevels, status]);
 
   useEffect(() => {
     if (status !== 'playing' || timeLeft > 0) return;
@@ -657,14 +776,14 @@ export default function Home() {
       if (isBossStage) setBossModifier(null);
       const isChapterEnd = safeStage % STAGES_PER_CHAPTER === 0;
       if (isChapterEnd && safeStage >= SHOP_UNLOCK_STAGE) {
-        setShopOffers(drawRelicOffers(relicLevels));
+        setShopOffers(drawRelicOffers(relicLevels, fusedRelics));
         setShopRefreshes(0);
         setStatus('shop');
       } else {
         setStatus('wave-clear');
       }
     }
-  }, [coins, isBossStage, relicLevels, safeStage, stageData.goal, status, timeLeft]);
+  }, [coins, fusedRelics, isBossStage, relicLevels, safeStage, stageData.goal, status, timeLeft]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setNotice(''), 2600);
@@ -760,6 +879,7 @@ export default function Home() {
       ...selectedPlant,
       id: nextId.current++,
       golden: false,
+      diamond: false,
       storedMultiplier: 1,
       lastHarvestAt: 0,
     };
@@ -779,7 +899,7 @@ export default function Home() {
 
   function buyRelic(id: RelicId) {
     const level = relicLevels[id];
-    if (level === 0 && relicPurchaseCount >= MAX_RELIC_SLOTS) {
+    if (level === 0 && relicSlotCount >= MAX_RELIC_SLOTS) {
       setNotice('四个遗物槽位已满，只能继续升级已拥有的遗物');
       return;
     }
@@ -794,10 +914,25 @@ export default function Home() {
     setRelicLevels((current) => ({ ...current, [id]: level + 1 }));
   }
 
+  function fuseRelic(id: FusedRelicId) {
+    const fusion = FUSIONS.find((item) => item.id === id)!;
+    if (
+      safeStage < FUSION_UNLOCK_STAGE ||
+      fusedRelics[id] ||
+      fusion.materials.some((material) => relicLevels[material] < 6)
+    ) {
+      return;
+    }
+    const nextFused = { ...fusedRelics, [id]: true };
+    setFusedRelics(nextFused);
+    setShopOffers(drawRelicOffers(relicLevels, nextFused));
+    setNotice(`遗物融合完成：${fusion.name}`);
+  }
+
   function refreshShop() {
     if (status !== 'shop' || coins < refreshCost) return;
     setCoins((value) => value - refreshCost);
-    setShopOffers(drawRelicOffers(relicLevels));
+    setShopOffers(drawRelicOffers(relicLevels, fusedRelics));
     setShopRefreshes((value) => value + 1);
   }
 
@@ -893,6 +1028,7 @@ export default function Home() {
     setSelectedId(1);
     setBossModifier(null);
     setRelicLevels({ ...EMPTY_RELIC_LEVELS });
+    setFusedRelics({ ...EMPTY_FUSED_RELICS });
     setShopOffers([]);
     setShopRefreshes(0);
     commitHarvestStats({ ...EMPTY_HARVEST_STATS });
@@ -990,14 +1126,14 @@ export default function Home() {
                     type="button"
                     onClick={() => tendPlant(index)}
                     disabled={disabled}
-                    className={`plant-card ${ripe ? 'is-ripe' : ''} ${selected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''} ${plant.golden ? 'is-golden' : ''} ${plant.storedMultiplier > 1 ? 'is-stored' : ''} ${plant.storedMultiplier >= 4 ? 'stored-high' : ''} ${plant.storedMultiplier >= 8 ? 'stored-max' : ''}`}
+                    className={`plant-card ${ripe ? 'is-ripe' : ''} ${selected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''} ${plant.golden ? 'is-golden' : ''} ${plant.diamond ? 'is-diamond' : ''} ${plant.storedMultiplier > 1 ? 'is-stored' : ''} ${plant.storedMultiplier >= 4 ? 'stored-high' : ''} ${plant.storedMultiplier >= 8 ? 'stored-max' : ''} ${plant.storedMultiplier >= 16 ? 'stored-ultimate' : ''}`}
                     aria-label={`第 ${index + 1} 株植物，等级 ${plant.level}，成长 ${Math.round(plant.growth)}%，最小收获间隔 ${(plant.minHarvestMs / 1000).toFixed(1)} 秒`}
                   >
                     <span className="plot-number">{String(index + 1).padStart(2, '0')}</span>
-                    {plant.golden && <span className="golden-mark"><Sparkles /> 黄金</span>}
+                    {plant.diamond ? <span className="diamond-mark"><Sparkles /> 钻石</span> : plant.golden && <span className="golden-mark"><Sparkles /> 黄金</span>}
                     <Sprout aria-hidden="true" style={{ transform: `scale(${0.72 + plant.growth / 360})` }} />
                     <span className="plant-name">
-                      {disabled ? 'Boss 已禁用' : plant.storedMultiplier > 1 ? `金币蓄积 ×${plant.storedMultiplier}` : ripe ? `可收获 · Lv.${plant.level}` : `日光芽 Lv.${plant.level}`}
+                      {disabled ? 'Boss 已禁用' : plant.storedMultiplier > 1 ? `金币蓄积 ×${plant.storedMultiplier}` : plant.diamond ? `钻石植物 · Lv.${plant.level}` : plant.golden ? `黄金植物 · Lv.${plant.level}` : ripe ? `可收获 · Lv.${plant.level}` : `日光芽 Lv.${plant.level}`}
                     </span>
                     <span className="growth-track"><i style={{ width: `${plant.growth}%` }} /></span>
                     <span className="growth-value"><span>{Math.round(plant.growth)}%</span><span>间隔 {(plant.minHarvestMs / 1000).toFixed(1)}s</span></span>
@@ -1007,7 +1143,7 @@ export default function Home() {
             </div>
 
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-              <p className="flex items-center gap-2 text-sm text-muted-foreground"><MousePointer2 className="size-4" /> 点击催生 +{clickPower}%；最短收获间隔为 0.3 秒。</p>
+              <p className="flex items-center gap-2 text-sm text-muted-foreground"><MousePointer2 className="size-4" /> 点击催生 +{clickPower}%；最短收获间隔为 {fusedRelics.catDog ? '0.1' : '0.3'} 秒。</p>
               <div className="chapter-track" aria-label={`当前第 ${bigChapter} 章，共 6 章`}>
                 {Array.from({ length: TOTAL_CHAPTERS }, (_, index) => (
                   <span key={index} className={index + 1 <= bigChapter ? 'active' : ''}>{index + 1}</span>
@@ -1044,7 +1180,7 @@ export default function Home() {
 
             <div className="manual-card">
               <Leaf />
-              <div><b>总收获 {harvestStats.total} 次 · 遗物槽位 {relicPurchaseCount}/{MAX_RELIC_SLOTS}</b><span>槽位满后只能升级已有遗物；自动收割沿用暴击与收获计数。</span></div>
+              <div><b>总收获 {harvestStats.total} 次 · 遗物槽位 {relicSlotCount}/{MAX_RELIC_SLOTS} · 融合 {fusedRelicCount}/4</b><span>融合遗物继承素材效果，且两件素材合并占用一个槽位。</span></div>
             </div>
           </aside>
         </section>
@@ -1072,13 +1208,13 @@ export default function Home() {
                 );
                 const maxed = level >= 6;
                 const slotsFull =
-                  level === 0 && relicPurchaseCount >= MAX_RELIC_SLOTS;
+                  level === 0 && relicSlotCount >= MAX_RELIC_SLOTS;
                 const progress = relic.id === 'goldenDrop'
                   ? `${harvestStats.goldenProgress}/${GOLDEN_FRAGMENT_HARVESTS} · 碎片 ${harvestStats.fragments}/4`
                   : relic.id === 'bigDog'
-                    ? `${harvestStats.bigDogProgress}/${Math.max(24, 72 - Math.max(1, level) * 8)}`
+                    ? `${harvestStats.bigDogProgress}/${fusedRelics.catDog ? Math.max(8, Math.floor(Math.max(24, 72 - Math.max(1, level) * 8) / 2)) : Math.max(24, 72 - Math.max(1, level) * 8)}`
                     : relic.id === 'maodie'
-                      ? `${harvestStats.maodieProgress}/${Math.max(24, 72 - Math.max(1, level) * 8)}`
+                      ? `${harvestStats.maodieProgress}/${fusedRelics.catDog ? Math.max(8, Math.floor(Math.max(24, 72 - Math.max(1, level) * 8) / 2)) : Math.max(24, 72 - Math.max(1, level) * 8)}`
                       : null;
                 return (
                   <article className={`relic-card ${level > 0 ? 'is-owned' : ''}`} key={relic.id}>
@@ -1094,6 +1230,43 @@ export default function Home() {
                 );
               })}
             </div>
+
+            {safeStage >= FUSION_UNLOCK_STAGE && (
+              <section className="fusion-section" aria-labelledby="fusion-title">
+                <div className="fusion-heading">
+                  <div><p className="eyebrow">第20关解锁 · 满级素材限定</p><h3 id="fusion-title"><Sparkles /> 遗物融合</h3></div>
+                  <p>两件满级遗物融合为一件，保留原效果并释放一个遗物槽位。</p>
+                </div>
+                <div className="fusion-grid">
+                  {FUSIONS.map((fusion) => {
+                    const fused = fusedRelics[fusion.id];
+                    const ready = fusion.materials.every(
+                      (material) => relicLevels[material] >= 6,
+                    );
+                    const materialNames = fusion.materials.map(
+                      (material) => RELICS.find((relic) => relic.id === material)!.name,
+                    );
+                    return (
+                      <article className={`fusion-card ${fused ? 'is-fused' : ''}`} key={fusion.id}>
+                        <div className="fusion-materials">
+                          {fusion.materials.map((material, index) => (
+                            <span key={material}>{materialNames[index]} Lv.{relicLevels[material]}</span>
+                          ))}
+                        </div>
+                        <h4>{fusion.name}</h4>
+                        <p>{fusion.description}</p>
+                        {fusion.id === 'goldenHarvester' && fused && (
+                          <small>钻石碎片 {harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT}</small>
+                        )}
+                        <Button onClick={() => fuseRelic(fusion.id)} disabled={!ready || fused} className="w-full">
+                          {fused ? '融合完成' : ready ? '立即融合' : '需要两件 Lv.6 素材'}
+                        </Button>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             <footer className="shop-footer">
               <p>购入阶梯 {relicPurchaseCount} · 升级阶梯 {relicUpgradeCount}。每次购买或升级都会抬高同类后续价格。</p>
