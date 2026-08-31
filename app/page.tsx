@@ -58,9 +58,10 @@ type HarvestStats = {
 };
 
 const TOTAL_CHAPTERS = 6;
-const STAGES_PER_CHAPTER = 6;
+const STAGES_PER_CHAPTER = 5;
 const TOTAL_STAGES = TOTAL_CHAPTERS * STAGES_PER_CHAPTER;
 const SHOP_UNLOCK_STAGE = 12;
+const MAX_RELIC_SLOTS = 4;
 
 const STAGES = Array.from({ length: TOTAL_STAGES }, (_, index) => {
   const stage = index + 1;
@@ -253,10 +254,17 @@ function fertilizerCap(level: number) {
 }
 
 function drawRelicOffers(levels: RelicLevels) {
-  const available = RELICS.filter((relic) => levels[relic.id] < 6);
-  const pool = available.length >= 3 ? available : RELICS;
-  return [...pool]
-    .sort(() => Math.random() - 0.5)
+  const ownedCount = Object.values(levels).filter((level) => level > 0).length;
+  const available = RELICS.filter((relic) =>
+    ownedCount >= MAX_RELIC_SLOTS
+      ? levels[relic.id] > 0 && levels[relic.id] < 6
+      : levels[relic.id] < 6,
+  );
+  const shuffledAvailable = [...available].sort(() => Math.random() - 0.5);
+  const filler = RELICS.filter((relic) => !available.includes(relic)).sort(
+    () => Math.random() - 0.5,
+  );
+  return [...shuffledAvailable, ...filler]
     .slice(0, 3)
     .map((relic) => relic.id);
 }
@@ -265,7 +273,7 @@ function relicEffect(id: RelicId, level: number) {
   const shownLevel = Math.max(1, level);
   switch (id) {
     case 'autoHarvester':
-      return `自动收获；额外催熟 +${(shownLevel * 1.2).toFixed(1)}%/秒`;
+      return `自动收获；催生速率 +${40 + (shownLevel - 1) * 20}%`;
     case 'goldenDrop':
       return `植物金币 +${shownLevel * 20}%，自动生长 +${(shownLevel * 0.6).toFixed(1)}%/秒`;
     case 'fertilizer':
@@ -316,7 +324,7 @@ export default function Home() {
   const isBossStage = stageData.boss;
   const activeBossModifier = isBossStage ? bossModifier : null;
   const clickPower = 18 + clickLevel * 7;
-  const naturalRate = 1.25;
+  const naturalRate = 3.75;
   const clickCost = Math.round(8 * 1.65 ** clickLevel);
   const cloneCost = Math.round(7 * 1.55 ** cloneCount);
   const areaCost = areaLevel === 0 ? 24 : 55;
@@ -556,8 +564,11 @@ export default function Home() {
     const timer = window.setInterval(() => {
       const now = Date.now();
       setTimeLeft((value) => Math.max(0, value - 0.25));
-      const autoGrowth =
-        relicLevels.autoHarvester * 1.2 + relicLevels.goldenDrop * 0.6;
+      const autoGrowth = relicLevels.goldenDrop * 0.6;
+      const harvesterGrowthMultiplier =
+        relicLevels.autoHarvester > 0
+          ? 1.4 + (relicLevels.autoHarvester - 1) * 0.2
+          : 1;
       const fertilizerGrowthMultiplier =
         relicLevels.fertilizer > 0
           ? 1.5 + (relicLevels.fertilizer - 1) * 0.15
@@ -574,7 +585,10 @@ export default function Home() {
           : Math.min(
               100,
               plant.growth +
-                (naturalRate + autoGrowth) * fertilizerGrowthMultiplier * 0.25,
+                (naturalRate + autoGrowth) *
+                  harvesterGrowthMultiplier *
+                  fertilizerGrowthMultiplier *
+                  0.25,
             );
         const reachedMaturity = plant.growth < 100 && nextGrowth >= 100;
         const ripeSince = reachedMaturity
@@ -751,6 +765,10 @@ export default function Home() {
 
   function buyRelic(id: RelicId) {
     const level = relicLevels[id];
+    if (level === 0 && relicPurchaseCount >= MAX_RELIC_SLOTS) {
+      setNotice('四个遗物槽位已满，只能继续升级已拥有的遗物');
+      return;
+    }
     const cost = relicCost(
       id,
       level,
@@ -851,7 +869,7 @@ export default function Home() {
           <div className="game-panel">
             <div className="mb-5 grid gap-4 sm:grid-cols-[1fr_220px] sm:items-end">
               <div>
-                <p className="eyebrow">第 {bigChapter} 章 · 小关 {stageInChapter}/6 · 总进度 {safeStage}/36</p>
+                <p className="eyebrow">第 {bigChapter} 章 · 小关 {stageInChapter}/{STAGES_PER_CHAPTER} · 总进度 {safeStage}/{TOTAL_STAGES}</p>
                 <h2 className="text-xl font-bold">{stageData.name} · 结算时持有 {stageData.goal} 金币</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {gap > 0 ? `还差 ${gap} 金币，升级消费也会减少当前金币。` : '目标已达成！守住余额直到结算。'}
@@ -937,7 +955,7 @@ export default function Home() {
 
             <div className="manual-card">
               <Leaf />
-              <div><b>总收获 {harvestStats.total} 次 · 遗物 {Object.values(relicLevels).filter(Boolean).length}/8</b><span>自动收割会沿用暴击、黄金植物和收获计数。</span></div>
+              <div><b>总收获 {harvestStats.total} 次 · 遗物槽位 {relicPurchaseCount}/{MAX_RELIC_SLOTS}</b><span>槽位满后只能升级已有遗物；自动收割沿用暴击与收获计数。</span></div>
             </div>
           </aside>
         </section>
@@ -964,6 +982,8 @@ export default function Home() {
                   relicUpgradeCount,
                 );
                 const maxed = level >= 6;
+                const slotsFull =
+                  level === 0 && relicPurchaseCount >= MAX_RELIC_SLOTS;
                 const progress = relic.id === 'goldenDrop'
                   ? `${harvestStats.goldenProgress}/1000 · 碎片 ${harvestStats.fragments}/4`
                   : relic.id === 'bigDog'
@@ -978,8 +998,8 @@ export default function Home() {
                     <p>{relic.description}</p>
                     <div className="relic-effect">{relicEffect(relic.id, level > 0 ? level : 1)}</div>
                     {progress && <div className="relic-progress">进度 {progress}</div>}
-                    <Button onClick={() => buyRelic(relic.id)} disabled={maxed || coins < cost} className="w-full">
-                      {maxed ? '已满级' : level === 0 ? `购买 · ${cost} ◎` : `升级 Lv.${level + 1} · ${cost} ◎`}
+                    <Button onClick={() => buyRelic(relic.id)} disabled={maxed || slotsFull || coins < cost} className="w-full">
+                      {maxed ? '已满级' : slotsFull ? '遗物槽位已满' : level === 0 ? `购买 · ${cost} ◎` : `升级 Lv.${level + 1} · ${cost} ◎`}
                     </Button>
                   </article>
                 );
@@ -1003,7 +1023,7 @@ export default function Home() {
             <div className="result-media"><BadgeCheck /></div>
             <div>
               <h2 id="wave-title" className="result-title">{safeStage % STAGES_PER_CHAPTER === 0 ? `第 ${bigChapter} 章完成` : `第 ${safeStage} 小关通过`}</h2>
-              <p id="wave-description" className="result-description">{safeStage < SHOP_UNLOCK_STAGE ? `商店将在第 ${SHOP_UNLOCK_STAGE} 关结束后解锁。` : '本关不是章末，无法进入商店。遗物商店只在每六关结束时开放。'}</p>
+              <p id="wave-description" className="result-description">{safeStage < SHOP_UNLOCK_STAGE ? `商店将在第 ${SHOP_UNLOCK_STAGE} 关结束后解锁。` : '本关不是章末，无法进入商店。遗物商店只在每五关结束时开放。'}</p>
             </div>
             <div className="result-footer"><Button onClick={continueStage}>进入第 {safeStage + 1} 小关</Button></div>
           </section>
@@ -1017,7 +1037,7 @@ export default function Home() {
             <div>
               <h2 id="result-title" className="result-title">{status === 'failed' ? '金币检测未通过' : '前期与中期阶段完成！'}</h2>
               <p id="result-description" className="result-description">
-                {status === 'failed' ? `第 ${safeStage} 关结算需要 ${stageData.goal} 金币，你持有 ${coins} 金币，还差 ${gap}。` : `你完成了 6 个章节、36 个小关与 6 场章末 Boss 战。`}
+                {status === 'failed' ? `第 ${safeStage} 关结算需要 ${stageData.goal} 金币，你持有 ${coins} 金币，还差 ${gap}。` : `你完成了 6 个章节、30 个小关与 6 场章末 Boss 战。`}
               </p>
             </div>
             <div className="result-footer"><Button onClick={restartGame}><RotateCcw /> 重新开始</Button></div>
