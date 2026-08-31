@@ -33,14 +33,14 @@ type Plant = { id: number; growth: number };
 type GameStatus = 'playing' | 'chapter-clear' | 'failed' | 'complete';
 
 const CHAPTERS = [
-  { goal: 70, seconds: 32, name: '晨光初醒' },
-  { goal: 165, seconds: 30, name: '账单加码' },
-  { goal: 295, seconds: 30, name: '订单堆积' },
-  { goal: 465, seconds: 28, name: '黄昏催收' },
-  { goal: 680, seconds: 32, name: '霜王来袭', boss: true },
+  { goal: 42, seconds: 32, name: '一株起步' },
+  { goal: 125, seconds: 30, name: '账单加码' },
+  { goal: 260, seconds: 30, name: '订单堆积' },
+  { goal: 430, seconds: 28, name: '黄昏催收' },
+  { goal: 650, seconds: 32, name: '霜王来袭', boss: true },
 ] as const;
 
-const INITIAL_GROWTH = [12, 31, 53, 76, 88, 42];
+const INITIAL_GROWTH = [45];
 const HARVEST_VALUE = 14;
 const MAX_PLANTS = 12;
 
@@ -71,8 +71,8 @@ export default function Home() {
   const clickPower = Math.round((18 + clickLevel * 7) * (isBoss ? 0.72 : 1));
   const naturalRate = isBoss ? 0.55 : 1.25;
   const clickCost = Math.round(30 * 1.65 ** clickLevel);
-  const cloneCost = Math.round(48 * 1.5 ** cloneCount);
-  const areaCost = areaLevel === 0 ? 90 : 190;
+  const cloneCost = Math.round(28 * 1.55 ** cloneCount);
+  const areaCost = areaLevel === 0 ? 75 : 165;
   const goalPercent = Math.min(100, (coins / chapterData.goal) * 100);
   const gap = Math.max(0, chapterData.goal - coins);
   const selectedPlant = plants.find((plant) => plant.id === selectedId) ?? plants[0];
@@ -116,25 +116,28 @@ export default function Home() {
     setSelectedId(target.id);
 
     setPlants((current) => {
-      const clickedWasRipe = current[index].growth >= 100;
-      if (clickedWasRipe) {
-        setCoins((value) => value + HARVEST_VALUE);
-        setNotice(`收获日光芽，金币 +${HARVEST_VALUE}`);
-      }
-
-      return current.map((plant, plantIndex) => {
-        if (plantIndex === index) {
-          return { ...plant, growth: clickedWasRipe ? 0 : Math.min(100, plant.growth + clickPower) };
-        }
-        if (areaLevel === 0) return plant;
-
+      let harvested = 0;
+      const next = current.map((plant, plantIndex) => {
         const distance =
           Math.abs(positions[plantIndex].row - positions[index].row) +
           Math.abs(positions[plantIndex].col - positions[index].col);
-        if (distance > areaLevel) return plant;
-        const splashPower = clickPower * (areaLevel === 1 ? 0.48 : 0.34);
-        return { ...plant, growth: Math.min(100, plant.growth + splashPower) };
+        const affected = plantIndex === index || (areaLevel > 0 && distance <= areaLevel);
+        if (!affected) return plant;
+        if (plant.growth >= 100) {
+          harvested += 1;
+          return { ...plant, growth: 0 };
+        }
+        const growthPower = plantIndex === index
+          ? clickPower
+          : clickPower * (areaLevel === 1 ? 0.48 : 0.34);
+        return { ...plant, growth: Math.min(100, plant.growth + growthPower) };
       });
+      if (harvested > 0) {
+        const income = harvested * HARVEST_VALUE;
+        setCoins((value) => value + income);
+        setNotice(harvested > 1 ? `范围收获 ${harvested} 株，金币 +${income}` : `收获日光芽，金币 +${income}`);
+      }
+      return next;
     });
   }
 
@@ -244,7 +247,7 @@ export default function Home() {
             </div>
 
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-              <p className="flex items-center gap-2 text-sm text-muted-foreground"><MousePointer2 className="size-4" /> 点击催生 +{clickPower}%；成熟后点击收获。</p>
+              <p className="flex items-center gap-2 text-sm text-muted-foreground"><MousePointer2 className="size-4" /> 点击催生 +{clickPower}%；范围内成熟植物会一并收获。</p>
               <div className="chapter-track" aria-label={`当前第 ${chapter} 章，共 5 章`}>
                 {CHAPTERS.map((item, index) => <span key={item.name} className={index + 1 <= chapter ? 'active' : ''}>{index === 4 ? 'B' : index + 1}</span>)}
               </div>
@@ -268,7 +271,7 @@ export default function Home() {
             </div>
             <div className="upgrade-row">
               <div className="upgrade-icon"><Expand /></div>
-              <div className="min-w-0 flex-1"><h3>扩散喷头 <em>Lv.{areaLevel}</em></h3><p>{areaLevel === 0 ? '催生相邻植物' : areaLevel === 1 ? '范围扩大到 2 格' : '已覆盖最大范围'}</p></div>
+              <div className="min-w-0 flex-1"><h3>扩散喷头 <em>Lv.{areaLevel}</em></h3><p>{areaLevel === 0 ? '催生并收获相邻植物' : areaLevel === 1 ? '催生/收获范围扩大到 2 格' : '已覆盖最大范围'}</p></div>
               <Button onClick={buyArea} disabled={coins < areaCost || areaLevel >= 2}>{areaLevel >= 2 ? '满级' : `${areaCost} ◎`}</Button>
             </div>
 
