@@ -324,7 +324,7 @@ export default function Home() {
   const isBossStage = stageData.boss;
   const activeBossModifier = isBossStage ? bossModifier : null;
   const clickPower = 18 + clickLevel * 7;
-  const naturalRate = 3.75;
+  const naturalRate = 6.25;
   const clickCost = Math.round(8 * 1.65 ** clickLevel);
   const cloneCost = Math.round(7 * 1.55 ** cloneCount);
   const areaCost = areaLevel === 0 ? 24 : 55;
