@@ -64,6 +64,7 @@ const STAGES_PER_CHAPTER = 5;
 const TOTAL_STAGES = TOTAL_CHAPTERS * STAGES_PER_CHAPTER;
 const SHOP_UNLOCK_STAGE = STAGES_PER_CHAPTER * 2;
 const MAX_RELIC_SLOTS = 4;
+const GOLDEN_FRAGMENT_HARVESTS = 100;
 
 const STAGES = Array.from({ length: TOTAL_STAGES }, (_, index) => {
   const stage = index + 1;
@@ -97,7 +98,7 @@ const RELICS: Array<{
     id: 'goldenDrop',
     name: '黄金水滴',
     branch: '黄金植物',
-    description: '提高植物生长速率；每收获 1000 次获得碎片，4 枚生成黄金植物。',
+    description: `提高植物生长速率；每收获 ${GOLDEN_FRAGMENT_HARVESTS} 次获得碎片，4 枚生成黄金植物。`,
     baseCost: 8,
   },
   {
@@ -469,8 +470,8 @@ export default function Home() {
 
     if (relicLevels.goldenDrop > 0) {
       nextStats.goldenProgress += harvested;
-      while (nextStats.goldenProgress >= 1000) {
-        nextStats.goldenProgress -= 1000;
+      while (nextStats.goldenProgress >= GOLDEN_FRAGMENT_HARVESTS) {
+        nextStats.goldenProgress -= GOLDEN_FRAGMENT_HARVESTS;
         nextStats.fragments += 1;
       }
       while (nextStats.fragments >= 4) {
@@ -1073,7 +1074,7 @@ export default function Home() {
                 const slotsFull =
                   level === 0 && relicPurchaseCount >= MAX_RELIC_SLOTS;
                 const progress = relic.id === 'goldenDrop'
-                  ? `${harvestStats.goldenProgress}/1000 · 碎片 ${harvestStats.fragments}/4`
+                  ? `${harvestStats.goldenProgress}/${GOLDEN_FRAGMENT_HARVESTS} · 碎片 ${harvestStats.fragments}/4`
                   : relic.id === 'bigDog'
                     ? `${harvestStats.bigDogProgress}/${Math.max(24, 72 - Math.max(1, level) * 8)}`
                     : relic.id === 'maodie'
