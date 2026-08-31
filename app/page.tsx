@@ -60,7 +60,7 @@ type HarvestStats = {
 const TOTAL_CHAPTERS = 6;
 const STAGES_PER_CHAPTER = 5;
 const TOTAL_STAGES = TOTAL_CHAPTERS * STAGES_PER_CHAPTER;
-const SHOP_UNLOCK_STAGE = 12;
+const SHOP_UNLOCK_STAGE = STAGES_PER_CHAPTER * 2;
 const MAX_RELIC_SLOTS = 4;
 
 const STAGES = Array.from({ length: TOTAL_STAGES }, (_, index) => {
@@ -88,14 +88,14 @@ const RELICS: Array<{
     id: 'autoHarvester',
     name: '自动收割机',
     branch: '黄金植物',
-    description: '自动收获成熟植物，并提供额外自动催熟速度。',
+    description: '自动收获成熟植物，并提高全场植物生长速率。',
     baseCost: 5,
   },
   {
     id: 'goldenDrop',
     name: '黄金水滴',
     branch: '黄金植物',
-    description: '每收获 1000 次获得碎片；4 枚碎片生成一株黄金植物。',
+    description: '提高植物生长速率；每收获 1000 次获得碎片，4 枚生成黄金植物。',
     baseCost: 8,
   },
   {
@@ -273,9 +273,9 @@ function relicEffect(id: RelicId, level: number) {
   const shownLevel = Math.max(1, level);
   switch (id) {
     case 'autoHarvester':
-      return `自动收获；催生速率 +${40 + (shownLevel - 1) * 20}%`;
+      return `自动收获；植物生长速率 +${40 + (shownLevel - 1) * 20}%`;
     case 'goldenDrop':
-      return `植物金币 +${shownLevel * 20}%，自动生长 +${(shownLevel * 0.6).toFixed(1)}%/秒`;
+      return `植物金币 +${shownLevel * 20}%，植物生长速率 +${20 + (shownLevel - 1) * 6}%`;
     case 'fertilizer':
       return `生长速度 +${50 + (shownLevel - 1) * 15}%；每 ${Math.max(2.5, 5.5 - shownLevel * 0.5).toFixed(1)} 秒蓄积翻倍，最高 ×${fertilizerCap(shownLevel)}`;
     case 'infinityBlade':
@@ -564,10 +564,13 @@ export default function Home() {
     const timer = window.setInterval(() => {
       const now = Date.now();
       setTimeLeft((value) => Math.max(0, value - 0.25));
-      const autoGrowth = relicLevels.goldenDrop * 0.6;
       const harvesterGrowthMultiplier =
         relicLevels.autoHarvester > 0
           ? 1.4 + (relicLevels.autoHarvester - 1) * 0.2
+          : 1;
+      const goldenGrowthMultiplier =
+        relicLevels.goldenDrop > 0
+          ? 1.2 + (relicLevels.goldenDrop - 1) * 0.06
           : 1;
       const fertilizerGrowthMultiplier =
         relicLevels.fertilizer > 0
@@ -585,8 +588,9 @@ export default function Home() {
           : Math.min(
               100,
               plant.growth +
-                (naturalRate + autoGrowth) *
+                naturalRate *
                   harvesterGrowthMultiplier *
+                  goldenGrowthMultiplier *
                   fertilizerGrowthMultiplier *
                   0.25,
             );
@@ -930,7 +934,7 @@ export default function Home() {
           <aside className="upgrade-panel">
             <p className="eyebrow">工具台 / {safeStage <= SHOP_UNLOCK_STAGE ? '前期' : '中期'}</p>
             <h2 className="text-xl font-bold">把金币变成效率</h2>
-            <p className="mb-4 mt-1 text-xs leading-relaxed text-muted-foreground">投资会降低本关持有金币。遗物商店在第 12 关后解锁，且只在章末开放。</p>
+            <p className="mb-4 mt-1 text-xs leading-relaxed text-muted-foreground">投资会降低本关持有金币。遗物商店在第二章结尾解锁，且只在章末开放。</p>
 
             <div className="upgrade-row">
               <div className="upgrade-icon"><TrendingUp /></div>
