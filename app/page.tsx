@@ -11,7 +11,6 @@ import {
   Leaf,
   MousePointer2,
   RotateCcw,
-  Snowflake,
   Sparkles,
   Sprout,
   Store,
@@ -32,7 +31,7 @@ type Plant = {
   minHarvestMs: number;
 };
 
-type GameStatus = 'playing' | 'shop' | 'failed' | 'complete';
+type GameStatus = 'playing' | 'wave-clear' | 'shop' | 'failed' | 'complete';
 type HarvestMode = 'manual' | 'auto';
 type BossModifier =
   | { kind: 'coin-tax'; percentage: number }
@@ -58,14 +57,24 @@ type HarvestStats = {
   maodieProgress: number;
 };
 
-const CHAPTERS = [
-  { goal: 8, seconds: 32, name: '一株起步' },
-  { goal: 28, seconds: 30, name: '账单加码' },
-  { goal: 70, seconds: 30, name: '订单堆积' },
-  { goal: 140, seconds: 28, name: '黄昏催收' },
-  { goal: 250, seconds: 32, name: '霜王来袭', boss: 'frost' },
-  { goal: 380, seconds: 35, name: '词条审判', boss: 'random' },
-] as const;
+const TOTAL_CHAPTERS = 6;
+const STAGES_PER_CHAPTER = 6;
+const TOTAL_STAGES = TOTAL_CHAPTERS * STAGES_PER_CHAPTER;
+const SHOP_UNLOCK_STAGE = 12;
+
+const STAGES = Array.from({ length: TOTAL_STAGES }, (_, index) => {
+  const stage = index + 1;
+  const chapter = Math.ceil(stage / STAGES_PER_CHAPTER);
+  const isBoss = stage % STAGES_PER_CHAPTER === 0;
+  return {
+    stage,
+    chapter,
+    goal: Math.round(8 + 5.5 * index ** 2),
+    seconds: isBoss ? 30 : stage <= SHOP_UNLOCK_STAGE ? 24 : 22,
+    name: isBoss ? `第 ${chapter} 章守关者` : stage <= SHOP_UNLOCK_STAGE ? '点击培育' : '遗物经营',
+    boss: isBoss,
+  };
+});
 
 const RELICS: Array<{
   id: RelicId;
@@ -227,6 +236,15 @@ function relicCost(id: RelicId, level: number) {
   return Math.round(relic.baseCost * 1.7 ** level);
 }
 
+function drawRelicOffers(levels: RelicLevels) {
+  const available = RELICS.filter((relic) => levels[relic.id] < 6);
+  const pool = available.length >= 3 ? available : RELICS;
+  return [...pool]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3)
+    .map((relic) => relic.id);
+}
+
 function relicEffect(id: RelicId, level: number) {
   const shownLevel = Math.max(1, level);
   switch (id) {
@@ -253,8 +271,8 @@ export default function Home() {
   const [plants, setPlants] = useState<Plant[]>(makeInitialPlants);
   const plantsRef = useRef(plants);
   const [coins, setCoins] = useState(0);
-  const [chapter, setChapter] = useState(1);
-  const [timeLeft, setTimeLeft] = useState(CHAPTERS[0].seconds);
+  const [stage, setStage] = useState(1);
+  const [timeLeft, setTimeLeft] = useState(STAGES[0].seconds);
   const [clickLevel, setClickLevel] = useState(0);
   const [areaLevel, setAreaLevel] = useState(0);
   const [cloneCount, setCloneCount] = useState(0);
@@ -268,31 +286,33 @@ export default function Home() {
     ...EMPTY_HARVEST_STATS,
   });
   const harvestStatsRef = useRef(harvestStats);
+  const [shopOffers, setShopOffers] = useState<RelicId[]>([]);
+  const [shopRefreshes, setShopRefreshes] = useState(0);
   const [notice, setNotice] = useState('点击植物开始照料');
   const [coinBurst, setCoinBurst] = useState({ amount: 0, serial: 0 });
   const nextId = useRef(2);
   const coinBurstTimer = useRef<number | null>(null);
 
-  const safeChapter = Math.min(Math.max(chapter, 1), CHAPTERS.length);
-  const chapterData = CHAPTERS[safeChapter - 1];
-  const isFrostBoss = chapterData.boss === 'frost';
-  const isRandomBoss = chapterData.boss === 'random';
-  const activeBossModifier = isRandomBoss ? bossModifier : null;
-  const clickPower = Math.round(
-    (18 + clickLevel * 7) * (isFrostBoss ? 0.72 : 1),
-  );
-  const naturalRate = isFrostBoss ? 0.55 : 1.25;
+  const safeStage = Math.min(Math.max(stage, 1), TOTAL_STAGES);
+  const stageData = STAGES[safeStage - 1];
+  const bigChapter = Math.ceil(safeStage / STAGES_PER_CHAPTER);
+  const stageInChapter = ((safeStage - 1) % STAGES_PER_CHAPTER) + 1;
+  const isBossStage = stageData.boss;
+  const activeBossModifier = isBossStage ? bossModifier : null;
+  const clickPower = 18 + clickLevel * 7;
+  const naturalRate = 1.25;
   const clickCost = Math.round(8 * 1.65 ** clickLevel);
   const cloneCost = Math.round(7 * 1.55 ** cloneCount);
   const areaCost = areaLevel === 0 ? 24 : 55;
-  const goalPercent = Math.min(100, (coins / chapterData.goal) * 100);
-  const gap = Math.max(0, chapterData.goal - coins);
+  const goalPercent = Math.min(100, (coins / stageData.goal) * 100);
+  const gap = Math.max(0, stageData.goal - coins);
   const selectedPlant =
     plants.find((plant) => plant.id === selectedId) ?? plants[0];
   const plantLevelCost = selectedPlant
     ? Math.round(4 * 1.85 ** (selectedPlant.level - 1))
     : 4;
   const bossModifierCopy = describeBossModifier(activeBossModifier);
+  const refreshCost = 8 + bigChapter * 4 + shopRefreshes * 4;
   const coinBurstTier =
     coinBurst.amount >= 12
       ? 'large'
@@ -561,13 +581,20 @@ export default function Home() {
 
   useEffect(() => {
     if (status !== 'playing' || timeLeft > 0) return;
-    if (coins < chapterData.goal) {
+    if (coins < stageData.goal) {
       setStatus('failed');
     } else {
-      if (isRandomBoss) setBossModifier(null);
-      setStatus('shop');
+      if (isBossStage) setBossModifier(null);
+      const isChapterEnd = safeStage % STAGES_PER_CHAPTER === 0;
+      if (isChapterEnd && safeStage >= SHOP_UNLOCK_STAGE) {
+        setShopOffers(drawRelicOffers(relicLevels));
+        setShopRefreshes(0);
+        setStatus('shop');
+      } else {
+        setStatus('wave-clear');
+      }
     }
-  }, [chapterData.goal, coins, isRandomBoss, status, timeLeft]);
+  }, [coins, isBossStage, relicLevels, safeStage, stageData.goal, status, timeLeft]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setNotice(''), 2600);
@@ -688,32 +715,36 @@ export default function Home() {
     setRelicLevels((current) => ({ ...current, [id]: level + 1 }));
   }
 
-  function continueChapter() {
-    if (safeChapter >= CHAPTERS.length) {
+  function refreshShop() {
+    if (status !== 'shop' || coins < refreshCost) return;
+    setCoins((value) => value - refreshCost);
+    setShopOffers(drawRelicOffers(relicLevels));
+    setShopRefreshes((value) => value + 1);
+  }
+
+  function continueStage() {
+    if (safeStage >= TOTAL_STAGES) {
       setBossModifier(null);
       setStatus('complete');
       return;
     }
-    const nextChapter = safeChapter + 1;
-    const nextChapterData = CHAPTERS[nextChapter - 1];
-    const rolledModifier =
-      nextChapterData.boss === 'random'
-        ? rollBossModifier(plantsRef.current)
-        : null;
+    const nextStage = safeStage + 1;
+    const nextStageData = STAGES[nextStage - 1];
+    const rolledModifier = nextStageData.boss
+      ? rollBossModifier(plantsRef.current)
+      : null;
     const adjustedSeconds =
       rolledModifier?.kind === 'early-check'
-        ? nextChapterData.seconds - rolledModifier.seconds
-        : nextChapterData.seconds;
-    setChapter(nextChapter);
+        ? nextStageData.seconds - rolledModifier.seconds
+        : nextStageData.seconds;
+    setStage(nextStage);
     setBossModifier(rolledModifier);
     setTimeLeft(adjustedSeconds);
     setStatus('playing');
     setNotice(
-      nextChapter === 5
-        ? 'Boss 词条生效：严寒侵袭'
-        : nextChapter === 6
-          ? `随机词条生效：${describeBossModifier(rolledModifier).title}`
-          : `第 ${nextChapter} 章开始`,
+      nextStageData.boss
+        ? `章末 Boss 词条：${describeBossModifier(rolledModifier).title}`
+        : `第 ${nextStage} 小关开始`,
     );
   }
 
@@ -721,14 +752,16 @@ export default function Home() {
     const initialPlants = makeInitialPlants();
     commitPlants(initialPlants);
     setCoins(0);
-    setChapter(1);
-    setTimeLeft(CHAPTERS[0].seconds);
+    setStage(1);
+    setTimeLeft(STAGES[0].seconds);
     setClickLevel(0);
     setAreaLevel(0);
     setCloneCount(0);
     setSelectedId(1);
     setBossModifier(null);
     setRelicLevels({ ...EMPTY_RELIC_LEVELS });
+    setShopOffers([]);
+    setShopRefreshes(0);
     commitHarvestStats({ ...EMPTY_HARVEST_STATS });
     nextId.current = 2;
     if (coinBurstTimer.current) window.clearTimeout(coinBurstTimer.current);
@@ -771,8 +804,8 @@ export default function Home() {
           <div className="game-panel">
             <div className="mb-5 grid gap-4 sm:grid-cols-[1fr_220px] sm:items-end">
               <div>
-                <p className="eyebrow">第 {chapter} 章 · {chapterData.name}</p>
-                <h2 className="text-xl font-bold">结算时持有 {chapterData.goal} 金币</h2>
+                <p className="eyebrow">第 {bigChapter} 章 · 小关 {stageInChapter}/6 · 总进度 {safeStage}/36</p>
+                <h2 className="text-xl font-bold">{stageData.name} · 结算时持有 {stageData.goal} 金币</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {gap > 0 ? `还差 ${gap} 金币，升级消费也会减少当前金币。` : '目标已达成！守住余额直到结算。'}
                 </p>
@@ -785,13 +818,7 @@ export default function Home() {
               </div>
             </div>
 
-            {isFrostBoss && (
-              <div className="boss-rule" role="status">
-                <Snowflake />
-                <div><b>Boss 词条 · 严寒侵袭</b><span>自然生长 -56%，点击催生 -28%</span></div>
-              </div>
-            )}
-            {isRandomBoss && (
+            {isBossStage && (
               <div className="boss-rule boss-rule-random" role="status">
                 {activeBossModifier?.kind === 'coin-tax' ? <Coins /> : activeBossModifier?.kind === 'early-check' ? <Timer /> : <CircleAlert />}
                 <div><b>随机 Boss 词条 · {bossModifierCopy.title}</b><span>{bossModifierCopy.description}，仅在本关生效</span></div>
@@ -827,18 +854,18 @@ export default function Home() {
 
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
               <p className="flex items-center gap-2 text-sm text-muted-foreground"><MousePointer2 className="size-4" /> 点击催生 +{clickPower}%；最短收获间隔为 0.3 秒。</p>
-              <div className="chapter-track" aria-label={`当前第 ${chapter} 章，共 6 章`}>
-                {CHAPTERS.map((item, index) => (
-                  <span key={item.name} className={index + 1 <= chapter ? 'active' : ''}>{index === 4 ? 'B1' : index === 5 ? 'B2' : index + 1}</span>
+              <div className="chapter-track" aria-label={`当前第 ${bigChapter} 章，共 6 章`}>
+                {Array.from({ length: TOTAL_CHAPTERS }, (_, index) => (
+                  <span key={index} className={index + 1 <= bigChapter ? 'active' : ''}>{index + 1}</span>
                 ))}
               </div>
             </div>
           </div>
 
           <aside className="upgrade-panel">
-            <p className="eyebrow">工具台 / 前期</p>
+            <p className="eyebrow">工具台 / {safeStage <= SHOP_UNLOCK_STAGE ? '前期' : '中期'}</p>
             <h2 className="text-xl font-bold">把金币变成效率</h2>
-            <p className="mb-4 mt-1 text-xs leading-relaxed text-muted-foreground">投资会降低本章持有金币。遗物只在小波结束后的商店购买。</p>
+            <p className="mb-4 mt-1 text-xs leading-relaxed text-muted-foreground">投资会降低本关持有金币。遗物商店在第 12 关后解锁，且只在章末开放。</p>
 
             <div className="upgrade-row">
               <div className="upgrade-icon"><TrendingUp /></div>
@@ -875,12 +902,13 @@ export default function Home() {
         <div className="shop-backdrop">
           <section className="shop-card" role="dialog" aria-modal="true" aria-labelledby="shop-title">
             <header className="shop-header">
-              <div><p className="eyebrow">第 {safeChapter} 小波结算完成</p><h2 id="shop-title"><Store /> 中期遗物商店</h2></div>
+              <div><p className="eyebrow">第 {bigChapter} 大章完成 · 随机三选</p><h2 id="shop-title"><Store /> 中期遗物商店</h2></div>
               <div className="shop-balance"><Coins /><span><b>{coins}</b><small>可用金币</small></span></div>
             </header>
 
             <div className="relic-grid">
-              {RELICS.map((relic, index) => {
+              {shopOffers.map((relicId, index) => {
+                const relic = RELICS.find((item) => item.id === relicId)!;
                 const level = relicLevels[relic.id];
                 const cost = relicCost(relic.id, level);
                 const maxed = level >= 6;
@@ -907,9 +935,25 @@ export default function Home() {
             </div>
 
             <footer className="shop-footer">
-              <p>商店期间倒计时暂停。消费会减少下一关可用于结算的金币。</p>
-              <Button onClick={continueChapter} size="lg">{safeChapter >= CHAPTERS.length ? '完成本轮' : `进入第 ${safeChapter + 1} 关`}</Button>
+              <p>商店只在章末开放。刷新会重新随机三个遗物，费用逐次增加。</p>
+              <div className="flex gap-2">
+                <Button onClick={refreshShop} variant="outline" size="lg" disabled={coins < refreshCost}>刷新 · {refreshCost} ◎</Button>
+                <Button onClick={continueStage} size="lg">{safeStage >= TOTAL_STAGES ? '完成本轮' : `进入第 ${safeStage + 1} 小关`}</Button>
+              </div>
             </footer>
+          </section>
+        </div>
+      )}
+
+      {status === 'wave-clear' && (
+        <div className="result-backdrop">
+          <section className="result-card" role="dialog" aria-modal="true" aria-labelledby="wave-title" aria-describedby="wave-description">
+            <div className="result-media"><BadgeCheck /></div>
+            <div>
+              <h2 id="wave-title" className="result-title">{safeStage % STAGES_PER_CHAPTER === 0 ? `第 ${bigChapter} 章完成` : `第 ${safeStage} 小关通过`}</h2>
+              <p id="wave-description" className="result-description">{safeStage < SHOP_UNLOCK_STAGE ? `商店将在第 ${SHOP_UNLOCK_STAGE} 关结束后解锁。` : '本关不是章末，无法进入商店。遗物商店只在每六关结束时开放。'}</p>
+            </div>
+            <div className="result-footer"><Button onClick={continueStage}>进入第 {safeStage + 1} 小关</Button></div>
           </section>
         </div>
       )}
@@ -921,7 +965,7 @@ export default function Home() {
             <div>
               <h2 id="result-title" className="result-title">{status === 'failed' ? '金币检测未通过' : '前期与中期阶段完成！'}</h2>
               <p id="result-description" className="result-description">
-                {status === 'failed' ? `结算需要 ${chapterData.goal} 金币，你持有 ${coins} 金币，还差 ${gap}。` : `你击败了两场 Boss，并建立了由遗物驱动的半自动温室。`}
+                {status === 'failed' ? `第 ${safeStage} 关结算需要 ${stageData.goal} 金币，你持有 ${coins} 金币，还差 ${gap}。` : `你完成了 6 个章节、36 个小关与 6 场章末 Boss 战。`}
               </p>
             </div>
             <div className="result-footer"><Button onClick={restartGame}><RotateCcw /> 重新开始</Button></div>
