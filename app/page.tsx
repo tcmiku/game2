@@ -17,18 +17,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 
 type Plant = { id: number; growth: number };
 type GameStatus = 'playing' | 'chapter-clear' | 'failed' | 'complete';
@@ -69,7 +58,8 @@ export default function Home() {
   const nextId = useRef(INITIAL_GROWTH.length + 1);
   const coinBurstTimer = useRef<number | null>(null);
 
-  const chapterData = CHAPTERS[chapter - 1];
+  const safeChapter = Math.min(Math.max(chapter, 1), CHAPTERS.length);
+  const chapterData = CHAPTERS[safeChapter - 1];
   const isBoss = Boolean(chapterData.boss);
   const clickPower = Math.round((18 + clickLevel * 7) * (isBoss ? 0.72 : 1));
   const naturalRate = isBoss ? 0.55 : 1.25;
@@ -80,12 +70,22 @@ export default function Home() {
   const areaCost = areaLevel === 0 ? 24 : 55;
   const goalPercent = Math.min(100, (coins / chapterData.goal) * 100);
   const gap = Math.max(0, chapterData.goal - coins);
-  const selectedPlant = plants.find((plant) => plant.id === selectedId) ?? plants[0];
-  const coinBurstTier = coinBurst.amount >= 12 ? 'large' : coinBurst.amount >= 4 ? 'medium' : 'small';
+  const selectedPlant =
+    plants.find((plant) => plant.id === selectedId) ?? plants[0];
+  const coinBurstTier =
+    coinBurst.amount >= 12
+      ? 'large'
+      : coinBurst.amount >= 4
+        ? 'medium'
+        : 'small';
 
   const rowWidth = 3;
   const positions = useMemo(
-    () => plants.map((_, index) => ({ row: Math.floor(index / rowWidth), col: index % rowWidth })),
+    () =>
+      plants.map((_, index) => ({
+        row: Math.floor(index / rowWidth),
+        col: index % rowWidth,
+      })),
     [plants],
   );
 
@@ -94,7 +94,10 @@ export default function Home() {
     const timer = window.setInterval(() => {
       setTimeLeft((value) => Math.max(0, value - 0.25));
       setPlants((current) =>
-        current.map((plant) => ({ ...plant, growth: Math.min(100, plant.growth + naturalRate * 0.25) })),
+        current.map((plant) => ({
+          ...plant,
+          growth: Math.min(100, plant.growth + naturalRate * 0.25),
+        })),
       );
     }, 250);
     return () => window.clearInterval(timer);
@@ -104,25 +107,31 @@ export default function Home() {
     if (status !== 'playing' || timeLeft > 0) return;
     if (coins < chapterData.goal) {
       setStatus('failed');
-    } else if (chapter === CHAPTERS.length) {
+    } else if (safeChapter === CHAPTERS.length) {
       setStatus('complete');
     } else {
       setStatus('chapter-clear');
     }
-  }, [chapter, chapterData.goal, coins, status, timeLeft]);
+  }, [chapterData.goal, coins, safeChapter, status, timeLeft]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setNotice(''), 2600);
     return () => window.clearTimeout(timer);
   }, [notice]);
 
-  useEffect(() => () => {
-    if (coinBurstTimer.current) window.clearTimeout(coinBurstTimer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (coinBurstTimer.current) window.clearTimeout(coinBurstTimer.current);
+    },
+    [],
+  );
 
   function showCoinGain(amount: number) {
     if (coinBurstTimer.current) window.clearTimeout(coinBurstTimer.current);
-    setCoinBurst((current) => ({ amount: current.amount + amount, serial: current.serial + 1 }));
+    setCoinBurst((current) => ({
+      amount: current.amount + amount,
+      serial: current.serial + 1,
+    }));
     coinBurstTimer.current = window.setTimeout(() => {
       setCoinBurst((current) => ({ ...current, amount: 0 }));
     }, 700);
@@ -131,33 +140,42 @@ export default function Home() {
   function tendPlant(index: number) {
     if (status !== 'playing') return;
     const target = plants[index];
+    const origin = positions[index];
+    if (!target || !origin) return;
     setSelectedId(target.id);
 
-    setPlants((current) => {
-      let harvested = 0;
-      const next = current.map((plant, plantIndex) => {
-        const distance =
-          Math.abs(positions[plantIndex].row - positions[index].row) +
-          Math.abs(positions[plantIndex].col - positions[index].col);
-        const affected = plantIndex === index || (areaLevel > 0 && distance <= areaLevel);
-        if (!affected) return plant;
-        if (plant.growth >= 100) {
-          harvested += 1;
-          return { ...plant, growth: 0 };
-        }
-        const growthPower = plantIndex === index
+    let harvested = 0;
+    const nextPlants = plants.map((plant, plantIndex) => {
+      const position = positions[plantIndex];
+      if (!position) return plant;
+      const distance =
+        Math.abs(position.row - origin.row) +
+        Math.abs(position.col - origin.col);
+      const affected =
+        plantIndex === index || (areaLevel > 0 && distance <= areaLevel);
+      if (!affected) return plant;
+      if (plant.growth >= 100) {
+        harvested += 1;
+        return { ...plant, growth: 0 };
+      }
+      const growthPower =
+        plantIndex === index
           ? clickPower
           : clickPower * (areaLevel === 1 ? 0.48 : 0.34);
-        return { ...plant, growth: Math.min(100, plant.growth + growthPower) };
-      });
-      if (harvested > 0) {
-        const income = harvested * harvestValue;
-        setCoins((value) => value + income);
-        showCoinGain(income);
-        setNotice(harvested > 1 ? `范围收获 ${harvested} 株，金币 +${income}` : `收获日光芽，金币 +${income}`);
-      }
-      return next;
+      return { ...plant, growth: Math.min(100, plant.growth + growthPower) };
     });
+    setPlants(nextPlants);
+
+    if (harvested > 0) {
+      const income = harvested * harvestValue;
+      setCoins((value) => value + income);
+      showCoinGain(income);
+      setNotice(
+        harvested > 1
+          ? `范围收获 ${harvested} 株，金币 +${income}`
+          : `收获日光芽，金币 +${income}`,
+      );
+    }
   }
 
   function upgradePlantLevel() {
@@ -175,7 +193,8 @@ export default function Home() {
   }
 
   function cloneSelectedPlant() {
-    if (!selectedPlant || coins < cloneCost || plants.length >= MAX_PLANTS) return;
+    if (!selectedPlant || coins < cloneCost || plants.length >= MAX_PLANTS)
+      return;
     setCoins((value) => value - cloneCost);
     const newPlant = { id: nextId.current++, growth: selectedPlant.growth };
     setPlants((current) => [...current, newPlant]);
@@ -192,11 +211,21 @@ export default function Home() {
   }
 
   function continueChapter() {
-    const nextChapter = chapter + 1;
+    if (safeChapter >= CHAPTERS.length) {
+      setStatus('complete');
+      return;
+    }
+    const nextChapter = safeChapter + 1;
+    const nextChapterData = CHAPTERS[nextChapter - 1];
+    if (!nextChapterData) return;
     setChapter(nextChapter);
-    setTimeLeft(CHAPTERS[nextChapter - 1].seconds);
+    setTimeLeft(nextChapterData.seconds);
     setStatus('playing');
-    setNotice(nextChapter === 5 ? 'Boss 词条生效：严寒侵袭' : `第 ${nextChapter} 章开始`);
+    setNotice(
+      nextChapter === 5
+        ? 'Boss 词条生效：严寒侵袭'
+        : `第 ${nextChapter} 章开始`,
+    );
   }
 
   function restartGame() {
@@ -221,16 +250,36 @@ export default function Home() {
       <div className="mx-auto max-w-7xl">
         <header className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
           <div>
-            <p className="mb-1 font-mono text-xs uppercase tracking-[0.22em] text-primary">Greenhouse ledger / season 01</p>
-            <h1 className="text-3xl font-black tracking-[-0.04em] sm:text-4xl">温室账单</h1>
+            <p className="mb-1 font-mono text-xs uppercase tracking-[0.22em] text-primary">
+              Greenhouse ledger / season 01
+            </p>
+            <h1 className="text-3xl font-black tracking-[-0.04em] sm:text-4xl">
+              温室账单
+            </h1>
           </div>
           <div className="flex w-full gap-2 sm:w-auto">
-            <div key={coinBurst.serial} className={`stat-chip coin-chip ${coinBurst.amount > 0 ? `coin-hit-${coinBurstTier}` : ''}`}>
+            <div
+              key={coinBurst.serial}
+              className={`stat-chip coin-chip ${coinBurst.amount > 0 ? `coin-hit-${coinBurstTier}` : ''}`}
+            >
               <Coins />
-              <span><b>{coins}</b><small>当前金币</small></span>
-              {coinBurst.amount > 0 && <i className={`coin-burst ${coinBurstTier}`}>+{coinBurst.amount}</i>}
+              <span>
+                <b>{coins}</b>
+                <small>当前金币</small>
+              </span>
+              {coinBurst.amount > 0 && (
+                <i className={`coin-burst ${coinBurstTier}`}>
+                  +{coinBurst.amount}
+                </i>
+              )}
             </div>
-            <div className={`stat-chip ${timeLeft <= 8 ? 'is-urgent' : ''}`}><Timer /> <span><b>{formatTime(timeLeft)}</b><small>结算倒计时</small></span></div>
+            <div className={`stat-chip ${timeLeft <= 8 ? 'is-urgent' : ''}`}>
+              <Timer />{' '}
+              <span>
+                <b>{formatTime(timeLeft)}</b>
+                <small>结算倒计时</small>
+              </span>
+            </div>
           </div>
         </header>
 
@@ -238,22 +287,39 @@ export default function Home() {
           <div className="game-panel">
             <div className="mb-5 grid gap-4 sm:grid-cols-[1fr_220px] sm:items-end">
               <div>
-                <p className="eyebrow">第 {chapter} 章 · {chapterData.name}</p>
-                <h2 className="text-xl font-bold">结算时持有 {chapterData.goal} 金币</h2>
-                <p className="mt-1 text-sm text-muted-foreground">{gap > 0 ? `还差 ${gap} 金币，升级消费也会减少当前金币。` : '目标已达成！守住余额直到结算。'}</p>
+                <p className="eyebrow">
+                  第 {chapter} 章 · {chapterData.name}
+                </p>
+                <h2 className="text-xl font-bold">
+                  结算时持有 {chapterData.goal} 金币
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {gap > 0
+                    ? `还差 ${gap} 金币，升级消费也会减少当前金币。`
+                    : '目标已达成！守住余额直到结算。'}
+                </p>
               </div>
               <div>
                 <div className="mb-1 flex justify-between font-mono text-[10px] font-bold uppercase tracking-wider">
-                  <span>账单进度</span><span>{Math.round(goalPercent)}%</span>
+                  <span>账单进度</span>
+                  <span>{Math.round(goalPercent)}%</span>
                 </div>
-                <Progress value={goalPercent} className="goal-progress" aria-label={`金币目标完成 ${Math.round(goalPercent)}%`} />
+                <progress
+                  value={goalPercent}
+                  max={100}
+                  className="native-progress"
+                  aria-label={`金币目标完成 ${Math.round(goalPercent)}%`}
+                />
               </div>
             </div>
 
             {isBoss && (
               <div className="boss-rule" role="status">
                 <Snowflake />
-                <div><b>Boss 词条 · 严寒侵袭</b><span>自然生长 -56%，点击催生 -28%</span></div>
+                <div>
+                  <b>Boss 词条 · 严寒侵袭</b>
+                  <span>自然生长 -56%，点击催生 -28%</span>
+                </div>
               </div>
             )}
 
@@ -269,20 +335,48 @@ export default function Home() {
                     className={`plant-card ${ripe ? 'is-ripe' : ''} ${selected ? 'is-selected' : ''}`}
                     aria-label={`第 ${index + 1} 株日光芽，成长 ${Math.round(plant.growth)}%，${ripe ? '点击收获' : '点击催生'}`}
                   >
-                    <span className="plot-number">{String(index + 1).padStart(2, '0')}</span>
-                    <Sprout aria-hidden="true" style={{ transform: `scale(${0.72 + plant.growth / 360})` }} />
-                    <span className="plant-name">{ripe ? `点击收获 +${harvestValue}` : `日光芽 Lv.${plantLevel}`}</span>
-                    <span className="growth-track"><i style={{ width: `${plant.growth}%` }} /></span>
-                    <span className="growth-value">{Math.round(plant.growth)}%</span>
+                    <span className="plot-number">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <Sprout
+                      aria-hidden="true"
+                      style={{
+                        transform: `scale(${0.72 + plant.growth / 360})`,
+                      }}
+                    />
+                    <span className="plant-name">
+                      {ripe
+                        ? `点击收获 +${harvestValue}`
+                        : `日光芽 Lv.${plantLevel}`}
+                    </span>
+                    <span className="growth-track">
+                      <i style={{ width: `${plant.growth}%` }} />
+                    </span>
+                    <span className="growth-value">
+                      {Math.round(plant.growth)}%
+                    </span>
                   </button>
                 );
               })}
             </div>
 
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-              <p className="flex items-center gap-2 text-sm text-muted-foreground"><MousePointer2 className="size-4" /> 点击催生 +{clickPower}%；范围内成熟植物会一并收获。</p>
-              <div className="chapter-track" aria-label={`当前第 ${chapter} 章，共 5 章`}>
-                {CHAPTERS.map((item, index) => <span key={item.name} className={index + 1 <= chapter ? 'active' : ''}>{index === 4 ? 'B' : index + 1}</span>)}
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <MousePointer2 className="size-4" /> 点击催生 +{clickPower}
+                %；范围内成熟植物会一并收获。
+              </p>
+              <div
+                className="chapter-track"
+                aria-label={`当前第 ${chapter} 章，共 5 章`}
+              >
+                {CHAPTERS.map((item, index) => (
+                  <span
+                    key={item.name}
+                    className={index + 1 <= chapter ? 'active' : ''}
+                  >
+                    {index === 4 ? 'B' : index + 1}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
@@ -290,65 +384,153 @@ export default function Home() {
           <aside className="upgrade-panel">
             <p className="eyebrow">工具台 / 前期</p>
             <h2 className="text-xl font-bold">把金币变成效率</h2>
-            <p className="mb-4 mt-1 text-xs leading-relaxed text-muted-foreground">投资会降低本章持有金币。越接近结算，选择越要谨慎。</p>
+            <p className="mb-4 mt-1 text-xs leading-relaxed text-muted-foreground">
+              投资会降低本章持有金币。越接近结算，选择越要谨慎。
+            </p>
 
             <div className="upgrade-row">
-              <div className="upgrade-icon"><TrendingUp /></div>
-              <div className="min-w-0 flex-1"><h3>植物等级 <em>Lv.{plantLevel}</em></h3><p>每株产出 {harvestValue} → {harvestValue + 1} 金币</p></div>
-              <Button onClick={upgradePlantLevel} disabled={coins < plantLevelCost}>{plantLevelCost} ◎</Button>
+              <div className="upgrade-icon">
+                <TrendingUp />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3>
+                  植物等级 <em>Lv.{plantLevel}</em>
+                </h3>
+                <p>
+                  每株产出 {harvestValue} → {harvestValue + 1} 金币
+                </p>
+              </div>
+              <Button
+                onClick={upgradePlantLevel}
+                disabled={coins < plantLevelCost}
+              >
+                {plantLevelCost} ◎
+              </Button>
             </div>
             <div className="upgrade-row">
-              <div className="upgrade-icon"><Droplets /></div>
-              <div className="min-w-0 flex-1"><h3>强效浇灌 <em>Lv.{clickLevel}</em></h3><p>点击成长 +7%</p></div>
-              <Button onClick={buyClickPower} disabled={coins < clickCost}>{clickCost} ◎</Button>
+              <div className="upgrade-icon">
+                <Droplets />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3>
+                  强效浇灌 <em>Lv.{clickLevel}</em>
+                </h3>
+                <p>点击成长 +7%</p>
+              </div>
+              <Button onClick={buyClickPower} disabled={coins < clickCost}>
+                {clickCost} ◎
+              </Button>
             </div>
             <div className="upgrade-row">
-              <div className="upgrade-icon"><CopyPlus /></div>
-              <div className="min-w-0 flex-1"><h3>扦插繁育 <em>{plants.length}/{MAX_PLANTS}</em></h3><p>复制当前选中植物</p></div>
-              <Button onClick={cloneSelectedPlant} disabled={coins < cloneCost || plants.length >= MAX_PLANTS}>{plants.length >= MAX_PLANTS ? '已满' : `${cloneCost} ◎`}</Button>
+              <div className="upgrade-icon">
+                <CopyPlus />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3>
+                  扦插繁育{' '}
+                  <em>
+                    {plants.length}/{MAX_PLANTS}
+                  </em>
+                </h3>
+                <p>复制当前选中植物</p>
+              </div>
+              <Button
+                onClick={cloneSelectedPlant}
+                disabled={coins < cloneCost || plants.length >= MAX_PLANTS}
+              >
+                {plants.length >= MAX_PLANTS ? '已满' : `${cloneCost} ◎`}
+              </Button>
             </div>
             <div className="upgrade-row">
-              <div className="upgrade-icon"><Expand /></div>
-              <div className="min-w-0 flex-1"><h3>扩散喷头 <em>Lv.{areaLevel}</em></h3><p>{areaLevel === 0 ? '催生并收获相邻植物' : areaLevel === 1 ? '催生/收获范围扩大到 2 格' : '已覆盖最大范围'}</p></div>
-              <Button onClick={buyArea} disabled={coins < areaCost || areaLevel >= 2}>{areaLevel >= 2 ? '满级' : `${areaCost} ◎`}</Button>
+              <div className="upgrade-icon">
+                <Expand />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3>
+                  扩散喷头 <em>Lv.{areaLevel}</em>
+                </h3>
+                <p>
+                  {areaLevel === 0
+                    ? '催生并收获相邻植物'
+                    : areaLevel === 1
+                      ? '催生/收获范围扩大到 2 格'
+                      : '已覆盖最大范围'}
+                </p>
+              </div>
+              <Button
+                onClick={buyArea}
+                disabled={coins < areaCost || areaLevel >= 2}
+              >
+                {areaLevel >= 2 ? '满级' : `${areaCost} ◎`}
+              </Button>
             </div>
 
             <div className="manual-card">
               <Leaf />
-              <div><b>当前选中：第 {plants.findIndex((plant) => plant.id === selectedId) + 1} 株 · 产出 {harvestValue}</b><span>复制会保留它现在的生长度。</span></div>
+              <div>
+                <b>
+                  当前选中：第{' '}
+                  {plants.findIndex((plant) => plant.id === selectedId) + 1} 株
+                  · 产出 {harvestValue}
+                </b>
+                <span>复制会保留它现在的生长度。</span>
+              </div>
             </div>
           </aside>
         </section>
 
-        <output className={`notice ${notice ? 'is-visible' : ''}`} aria-live="polite">{notice}</output>
+        <output
+          className={`notice ${notice ? 'is-visible' : ''}`}
+          aria-live="polite"
+        >
+          {notice}
+        </output>
       </div>
 
-      <AlertDialog open={status !== 'playing'}>
-        <AlertDialogContent className="result-dialog">
-          <AlertDialogHeader>
-            <AlertDialogMedia className={status === 'failed' ? 'bg-destructive/10 text-destructive' : 'bg-secondary text-primary'}>
+      {status !== 'playing' && (
+        <div className="result-backdrop">
+          <section
+            className="result-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="result-title"
+            aria-describedby="result-description"
+          >
+            <div
+              className={`result-media ${status === 'failed' ? 'is-failed' : ''}`}
+            >
               {status === 'failed' ? <CircleAlert /> : <BadgeCheck />}
-            </AlertDialogMedia>
-            <AlertDialogTitle>
-              {status === 'failed' ? '金币检测未通过' : status === 'complete' ? '前期阶段完成！' : `第 ${chapter} 章通过`}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {status === 'failed'
-                ? `结算需要 ${chapterData.goal} 金币，你持有 ${coins} 金币，还差 ${gap}。这次要更谨慎地安排升级。`
-                : status === 'complete'
-                  ? `你在严寒侵袭下守住了 ${chapterData.goal} 金币，已经完成点击阶段的全部五章。`
-                  : `金币检测通过。下一章目标提高到 ${CHAPTERS[chapter].goal}，植物和升级会全部保留。`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            {status === 'chapter-clear' ? (
-              <AlertDialogAction onClick={continueChapter}>进入第 {chapter + 1} 章</AlertDialogAction>
-            ) : (
-              <AlertDialogAction onClick={restartGame}><RotateCcw /> 重新开始</AlertDialogAction>
-            )}
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </div>
+            <div>
+              <h2 id="result-title" className="result-title">
+                {status === 'failed'
+                  ? '金币检测未通过'
+                  : status === 'complete'
+                    ? '前期阶段完成！'
+                    : `第 ${chapter} 章通过`}
+              </h2>
+              <p id="result-description" className="result-description">
+                {status === 'failed'
+                  ? `结算需要 ${chapterData.goal} 金币，你持有 ${coins} 金币，还差 ${gap}。这次要更谨慎地安排升级。`
+                  : status === 'complete'
+                    ? `你在严寒侵袭下守住了 ${chapterData.goal} 金币，已经完成点击阶段的全部五章。`
+                    : `金币检测通过。下一章目标提高到 ${CHAPTERS[safeChapter].goal}，植物和升级会全部保留。`}
+              </p>
+            </div>
+            <div className="result-footer">
+              {status === 'chapter-clear' ? (
+                <Button onClick={continueChapter}>
+                  进入第 {safeChapter + 1} 章
+                </Button>
+              ) : (
+                <Button onClick={restartGame}>
+                  <RotateCcw /> 重新开始
+                </Button>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

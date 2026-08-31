@@ -23,7 +23,9 @@ export const metadata: Metadata = {
     title: '温室账单',
     description: '种植、收获，挺过每一次金币结算。',
     type: 'website',
-    images: [{ url: '/og.png', width: 1200, height: 630, alt: '温室账单游戏封面' }],
+    images: [
+      { url: '/og.png', width: 1200, height: 630, alt: '温室账单游戏封面' },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
