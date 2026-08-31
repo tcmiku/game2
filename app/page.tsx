@@ -21,13 +21,18 @@ import { Button } from '@/components/ui/button';
 
 type Plant = { id: number; growth: number };
 type GameStatus = 'playing' | 'chapter-clear' | 'failed' | 'complete';
+type BossModifier =
+  | { kind: 'coin-tax'; percentage: number }
+  | { kind: 'plant-lock'; disabledIds: number[] }
+  | { kind: 'early-check'; seconds: number };
 
 const CHAPTERS = [
   { goal: 8, seconds: 32, name: '一株起步' },
   { goal: 28, seconds: 30, name: '账单加码' },
   { goal: 70, seconds: 30, name: '订单堆积' },
   { goal: 140, seconds: 28, name: '黄昏催收' },
-  { goal: 250, seconds: 32, name: '霜王来袭', boss: true },
+  { goal: 250, seconds: 32, name: '霜王来袭', boss: 'frost' },
+  { goal: 380, seconds: 35, name: '词条审判', boss: 'random' },
 ] as const;
 
 const INITIAL_GROWTH = [45];
@@ -42,6 +47,50 @@ function formatTime(seconds: number) {
   return `00:${safe.toString().padStart(2, '0')}`;
 }
 
+function randomInteger(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function rollBossModifier(plants: Plant[]): BossModifier {
+  const roll = randomInteger(0, 2);
+  if (roll === 0) {
+    return { kind: 'coin-tax', percentage: randomInteger(10, 30) };
+  }
+  if (roll === 1) {
+    const shuffledIds = plants
+      .map((plant) => plant.id)
+      .sort(() => Math.random() - 0.5);
+    return {
+      kind: 'plant-lock',
+      disabledIds: shuffledIds.slice(
+        0,
+        Math.min(plants.length, randomInteger(1, 4)),
+      ),
+    };
+  }
+  return { kind: 'early-check', seconds: randomInteger(5, 10) };
+}
+
+function describeBossModifier(modifier: BossModifier | null) {
+  if (!modifier) return { title: '正在抽取', description: '词条即将生效' };
+  if (modifier.kind === 'coin-tax') {
+    return {
+      title: '减产税',
+      description: `本关金币收获量减少 ${modifier.percentage}%`,
+    };
+  }
+  if (modifier.kind === 'plant-lock') {
+    return {
+      title: '温室封锁',
+      description: `随机禁用 ${modifier.disabledIds.length} 株植物，本关无法生长或收获`,
+    };
+  }
+  return {
+    title: '催缴令',
+    description: `本关金币结算提前 ${modifier.seconds} 秒`,
+  };
+}
+
 export default function Home() {
   const [plants, setPlants] = useState<Plant[]>(makeInitialPlants);
   const [coins, setCoins] = useState(0);
@@ -53,6 +102,7 @@ export default function Home() {
   const [cloneCount, setCloneCount] = useState(0);
   const [selectedId, setSelectedId] = useState(1);
   const [status, setStatus] = useState<GameStatus>('playing');
+  const [bossModifier, setBossModifier] = useState<BossModifier | null>(null);
   const [notice, setNotice] = useState('点击植物开始照料');
   const [coinBurst, setCoinBurst] = useState({ amount: 0, serial: 0 });
   const nextId = useRef(INITIAL_GROWTH.length + 1);
@@ -60,9 +110,13 @@ export default function Home() {
 
   const safeChapter = Math.min(Math.max(chapter, 1), CHAPTERS.length);
   const chapterData = CHAPTERS[safeChapter - 1];
-  const isBoss = Boolean(chapterData.boss);
-  const clickPower = Math.round((18 + clickLevel * 7) * (isBoss ? 0.72 : 1));
-  const naturalRate = isBoss ? 0.55 : 1.25;
+  const isFrostBoss = chapterData.boss === 'frost';
+  const isRandomBoss = chapterData.boss === 'random';
+  const activeBossModifier = isRandomBoss ? bossModifier : null;
+  const clickPower = Math.round(
+    (18 + clickLevel * 7) * (isFrostBoss ? 0.72 : 1),
+  );
+  const naturalRate = isFrostBoss ? 0.55 : 1.25;
   const harvestValue = plantLevel;
   const plantLevelCost = Math.round(4 * 1.85 ** (plantLevel - 1));
   const clickCost = Math.round(8 * 1.65 ** clickLevel);
@@ -72,6 +126,7 @@ export default function Home() {
   const gap = Math.max(0, chapterData.goal - coins);
   const selectedPlant =
     plants.find((plant) => plant.id === selectedId) ?? plants[0];
+  const bossModifierCopy = describeBossModifier(activeBossModifier);
   const coinBurstTier =
     coinBurst.amount >= 12
       ? 'large'
@@ -94,14 +149,19 @@ export default function Home() {
     const timer = window.setInterval(() => {
       setTimeLeft((value) => Math.max(0, value - 0.25));
       setPlants((current) =>
-        current.map((plant) => ({
-          ...plant,
-          growth: Math.min(100, plant.growth + naturalRate * 0.25),
-        })),
+        current.map((plant) =>
+          activeBossModifier?.kind === 'plant-lock' &&
+          activeBossModifier.disabledIds.includes(plant.id)
+            ? plant
+            : {
+                ...plant,
+                growth: Math.min(100, plant.growth + naturalRate * 0.25),
+              },
+        ),
       );
     }, 250);
     return () => window.clearInterval(timer);
-  }, [naturalRate, status]);
+  }, [activeBossModifier, naturalRate, status]);
 
   useEffect(() => {
     if (status !== 'playing' || timeLeft > 0) return;
@@ -142,10 +202,23 @@ export default function Home() {
     const target = plants[index];
     const origin = positions[index];
     if (!target || !origin) return;
+    if (
+      activeBossModifier?.kind === 'plant-lock' &&
+      activeBossModifier.disabledIds.includes(target.id)
+    ) {
+      setNotice('这株植物被 Boss 词条禁用，本关无法操作');
+      return;
+    }
     setSelectedId(target.id);
 
     let harvested = 0;
     const nextPlants = plants.map((plant, plantIndex) => {
+      if (
+        activeBossModifier?.kind === 'plant-lock' &&
+        activeBossModifier.disabledIds.includes(plant.id)
+      ) {
+        return plant;
+      }
       const position = positions[plantIndex];
       if (!position) return plant;
       const distance =
@@ -167,13 +240,24 @@ export default function Home() {
     setPlants(nextPlants);
 
     if (harvested > 0) {
-      const income = harvested * harvestValue;
+      const grossIncome = harvested * harvestValue;
+      const income =
+        activeBossModifier?.kind === 'coin-tax'
+          ? Math.max(
+              1,
+              Math.round(
+                grossIncome * (1 - activeBossModifier.percentage / 100),
+              ),
+            )
+          : grossIncome;
       setCoins((value) => value + income);
       showCoinGain(income);
       setNotice(
-        harvested > 1
-          ? `范围收获 ${harvested} 株，金币 +${income}`
-          : `收获日光芽，金币 +${income}`,
+        activeBossModifier?.kind === 'coin-tax'
+          ? `减产税生效：原本 ${grossIncome} 金币，实际 +${income}`
+          : harvested > 1
+            ? `范围收获 ${harvested} 株，金币 +${income}`
+            : `收获日光芽，金币 +${income}`,
       );
     }
   }
@@ -218,12 +302,21 @@ export default function Home() {
     const nextChapter = safeChapter + 1;
     const nextChapterData = CHAPTERS[nextChapter - 1];
     if (!nextChapterData) return;
+    const rolledModifier =
+      nextChapterData.boss === 'random' ? rollBossModifier(plants) : null;
+    const adjustedSeconds =
+      rolledModifier?.kind === 'early-check'
+        ? nextChapterData.seconds - rolledModifier.seconds
+        : nextChapterData.seconds;
     setChapter(nextChapter);
-    setTimeLeft(nextChapterData.seconds);
+    setBossModifier(rolledModifier);
+    setTimeLeft(adjustedSeconds);
     setStatus('playing');
     setNotice(
       nextChapter === 5
         ? 'Boss 词条生效：严寒侵袭'
+        : nextChapter === 6
+          ? `随机词条生效：${describeBossModifier(rolledModifier).title}`
         : `第 ${nextChapter} 章开始`,
     );
   }
@@ -242,6 +335,7 @@ export default function Home() {
     if (coinBurstTimer.current) window.clearTimeout(coinBurstTimer.current);
     setCoinBurst({ amount: 0, serial: 0 });
     setStatus('playing');
+    setBossModifier(null);
     setNotice('新一轮开始：先催熟接近成熟的植物');
   }
 
@@ -313,7 +407,7 @@ export default function Home() {
               </div>
             </div>
 
-            {isBoss && (
+            {isFrostBoss && (
               <div className="boss-rule" role="status">
                 <Snowflake />
                 <div>
@@ -323,17 +417,37 @@ export default function Home() {
               </div>
             )}
 
+            {isRandomBoss && (
+              <div className="boss-rule boss-rule-random" role="status">
+                {activeBossModifier?.kind === 'coin-tax' ? (
+                  <Coins />
+                ) : activeBossModifier?.kind === 'early-check' ? (
+                  <Timer />
+                ) : (
+                  <CircleAlert />
+                )}
+                <div>
+                  <b>随机 Boss 词条 · {bossModifierCopy.title}</b>
+                  <span>{bossModifierCopy.description}，仅在本关生效</span>
+                </div>
+              </div>
+            )}
+
             <div className="plant-grid">
               {plants.map((plant, index) => {
                 const ripe = plant.growth >= 100;
                 const selected = plant.id === selectedId;
+                const disabled =
+                  activeBossModifier?.kind === 'plant-lock' &&
+                  activeBossModifier.disabledIds.includes(plant.id);
                 return (
                   <button
                     key={plant.id}
                     type="button"
                     onClick={() => tendPlant(index)}
-                    className={`plant-card ${ripe ? 'is-ripe' : ''} ${selected ? 'is-selected' : ''}`}
-                    aria-label={`第 ${index + 1} 株日光芽，成长 ${Math.round(plant.growth)}%，${ripe ? '点击收获' : '点击催生'}`}
+                    disabled={disabled}
+                    className={`plant-card ${ripe ? 'is-ripe' : ''} ${selected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''}`}
+                    aria-label={`第 ${index + 1} 株日光芽，成长 ${Math.round(plant.growth)}%，${disabled ? '本关已禁用' : ripe ? '点击收获' : '点击催生'}`}
                   >
                     <span className="plot-number">
                       {String(index + 1).padStart(2, '0')}
@@ -345,9 +459,11 @@ export default function Home() {
                       }}
                     />
                     <span className="plant-name">
-                      {ripe
-                        ? `点击收获 +${harvestValue}`
-                        : `日光芽 Lv.${plantLevel}`}
+                      {disabled
+                        ? 'Boss 已禁用'
+                        : ripe
+                          ? `点击收获 +${harvestValue}`
+                          : `日光芽 Lv.${plantLevel}`}
                     </span>
                     <span className="growth-track">
                       <i style={{ width: `${plant.growth}%` }} />
@@ -367,14 +483,14 @@ export default function Home() {
               </p>
               <div
                 className="chapter-track"
-                aria-label={`当前第 ${chapter} 章，共 5 章`}
+                aria-label={`当前第 ${chapter} 章，共 6 章`}
               >
                 {CHAPTERS.map((item, index) => (
                   <span
                     key={item.name}
                     className={index + 1 <= chapter ? 'active' : ''}
                   >
-                    {index === 4 ? 'B' : index + 1}
+                    {index === 4 ? 'B1' : index === 5 ? 'B2' : index + 1}
                   </span>
                 ))}
               </div>
@@ -512,8 +628,8 @@ export default function Home() {
               <p id="result-description" className="result-description">
                 {status === 'failed'
                   ? `结算需要 ${chapterData.goal} 金币，你持有 ${coins} 金币，还差 ${gap}。这次要更谨慎地安排升级。`
-                  : status === 'complete'
-                    ? `你在严寒侵袭下守住了 ${chapterData.goal} 金币，已经完成点击阶段的全部五章。`
+                : status === 'complete'
+                  ? `你顶住随机负面词条并守住了 ${chapterData.goal} 金币，已经完成点击阶段的全部六章。`
                     : `金币检测通过。下一章目标提高到 ${CHAPTERS[safeChapter].goal}，植物和升级会全部保留。`}
               </p>
             </div>

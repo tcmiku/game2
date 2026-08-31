@@ -154,6 +154,9 @@ body {
 .boss-rule span {
   @apply text-xs opacity-80;
 }
+.boss-rule-random {
+  @apply border-[#80521f] bg-[#f4dfb7] text-[#5f3810] shadow-[3px_3px_0_#80521f];
+}
 .plant-grid {
   @apply grid grid-cols-2 gap-3 sm:grid-cols-3;
 }
@@ -170,6 +173,12 @@ body {
 }
 .plant-card.is-selected {
   @apply ring-2 ring-primary ring-offset-2 ring-offset-card;
+}
+.plant-card.is-disabled {
+  @apply cursor-not-allowed border-foreground/20 bg-[#d7d6ce] text-muted-foreground opacity-65 shadow-none ring-0 grayscale;
+}
+.plant-card.is-disabled svg {
+  @apply text-muted-foreground;
 }
 .plant-card svg {
   @apply mb-3 size-12 text-primary transition-transform duration-300;
@@ -233,7 +242,7 @@ body {
   @apply flex items-center gap-1;
 }
 .chapter-track span {
-  @apply grid size-6 place-items-center border border-foreground/20 bg-muted font-mono text-[10px] text-muted-foreground;
+  @apply grid h-6 min-w-6 place-items-center border border-foreground/20 bg-muted px-1 font-mono text-[9px] text-muted-foreground;
 }
 .chapter-track span.active {
   @apply border-primary bg-primary text-primary-foreground;
