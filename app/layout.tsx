@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000',
+    process.env.NEXT_PUBLIC_SITE_URL ??
+      'https://greenhouse-ledger-game.hjm616.chatgpt.site',
   ),
   title: '温室账单 · 植物点击经营游戏',
   description: '催熟植物、收取金币，并在结算前完成温室账单。',
