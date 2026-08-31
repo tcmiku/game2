@@ -92,6 +92,30 @@ body {
   @apply border-destructive bg-[#f7dfd4] text-destructive;
   animation: urgent-pulse 0.75s ease-in-out infinite alternate;
 }
+.console-panel {
+  @apply mb-4 flex flex-col items-start gap-3;
+}
+.console-panel > button {
+  @apply border-foreground/30 bg-card shadow-[3px_3px_0_#172019];
+}
+.console-controls {
+  @apply grid w-full gap-3 border border-foreground/25 bg-[#20271f] p-3 text-background shadow-[4px_4px_0_#172019] md:grid-cols-[1fr_1fr_auto] md:items-end;
+}
+.console-controls form {
+  @apply grid grid-cols-[minmax(0,1fr)_auto] gap-2;
+}
+.console-controls label {
+  @apply col-span-2 font-mono text-[10px] font-bold uppercase tracking-wider text-[#b9d697];
+}
+.console-controls input {
+  @apply border-[#73836d] bg-[#111710] font-mono text-white;
+}
+.console-controls button {
+  @apply bg-accent text-accent-foreground hover:bg-accent/90;
+}
+.console-controls p {
+  @apply text-[10px] leading-relaxed text-[#b8c0b4] md:max-w-48;
+}
 .coin-chip.coin-hit-small {
   animation: coin-chip-small 300ms ease-out;
 }

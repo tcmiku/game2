@@ -14,11 +14,13 @@ import {
   Sparkles,
   Sprout,
   Store,
+  Terminal,
   Timer,
   TrendingUp,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 type Plant = {
   id: number;
@@ -312,6 +314,9 @@ export default function Home() {
   const harvestStatsRef = useRef(harvestStats);
   const [shopOffers, setShopOffers] = useState<RelicId[]>([]);
   const [shopRefreshes, setShopRefreshes] = useState(0);
+  const [consoleOpen, setConsoleOpen] = useState(false);
+  const [consoleCoins, setConsoleCoins] = useState('0');
+  const [consoleStage, setConsoleStage] = useState('1');
   const [notice, setNotice] = useState('点击植物开始照料');
   const [coinBurst, setCoinBurst] = useState({ amount: 0, serial: 0 });
   const nextId = useRef(2);
@@ -791,6 +796,60 @@ export default function Home() {
     setShopRefreshes((value) => value + 1);
   }
 
+  function toggleConsole() {
+    setConsoleOpen((open) => {
+      if (!open) {
+        setConsoleCoins(String(coins));
+        setConsoleStage(String(safeStage));
+      }
+      return !open;
+    });
+  }
+
+  function applyConsoleCoins() {
+    const parsed = Number(consoleCoins);
+    if (!Number.isFinite(parsed)) {
+      setNotice('请输入有效的金币数量');
+      return;
+    }
+    const nextCoins = Math.max(0, Math.floor(parsed));
+    setCoins(nextCoins);
+    setConsoleCoins(String(nextCoins));
+    setNotice(`控制台：金币已设置为 ${nextCoins}`);
+  }
+
+  function applyConsoleStage() {
+    const parsed = Number(consoleStage);
+    if (!Number.isFinite(parsed)) {
+      setNotice('请输入有效的关卡编号');
+      return;
+    }
+    const nextStage = Math.min(
+      TOTAL_STAGES,
+      Math.max(1, Math.floor(parsed)),
+    );
+    const nextStageData = STAGES[nextStage - 1];
+    const rolledModifier = nextStageData.boss
+      ? rollBossModifier(plantsRef.current)
+      : null;
+    const adjustedSeconds =
+      rolledModifier?.kind === 'early-check'
+        ? nextStageData.seconds - rolledModifier.seconds
+        : nextStageData.seconds;
+    setStage(nextStage);
+    setConsoleStage(String(nextStage));
+    setBossModifier(rolledModifier);
+    setTimeLeft(adjustedSeconds);
+    setShopOffers([]);
+    setShopRefreshes(0);
+    setStatus('playing');
+    setNotice(
+      nextStageData.boss
+        ? `控制台跳转：第 ${nextStage} 关 · ${describeBossModifier(rolledModifier).title}`
+        : `控制台跳转：第 ${nextStage} 关`,
+    );
+  }
+
   function continueStage() {
     if (safeStage >= TOTAL_STAGES) {
       setBossModifier(null);
@@ -868,6 +927,27 @@ export default function Home() {
             </div>
           </div>
         </header>
+
+        <section className={`console-panel ${consoleOpen ? 'is-open' : ''}`} aria-label="游戏测试控制台">
+          <Button type="button" variant="outline" onClick={toggleConsole} aria-expanded={consoleOpen}>
+            <Terminal /> 测试控制台
+          </Button>
+          {consoleOpen && (
+            <div className="console-controls">
+              <form onSubmit={(event) => { event.preventDefault(); applyConsoleCoins(); }}>
+                <label htmlFor="console-coins">金币数量</label>
+                <Input id="console-coins" type="number" min="0" step="1" value={consoleCoins} onChange={(event) => setConsoleCoins(event.target.value)} />
+                <Button type="submit">设置金币</Button>
+              </form>
+              <form onSubmit={(event) => { event.preventDefault(); applyConsoleStage(); }}>
+                <label htmlFor="console-stage">跳转关卡</label>
+                <Input id="console-stage" type="number" min="1" max={TOTAL_STAGES} step="1" value={consoleStage} onChange={(event) => setConsoleStage(event.target.value)} />
+                <Button type="submit">进入关卡</Button>
+              </form>
+              <p>关卡范围 1–{TOTAL_STAGES}。跳关会重新生成该关倒计时与 Boss 词条。</p>
+            </div>
+          )}
+        </section>
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_330px]">
           <div className="game-panel">
