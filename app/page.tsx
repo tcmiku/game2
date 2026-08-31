@@ -14,6 +14,7 @@ import {
   Snowflake,
   Sprout,
   Timer,
+  TrendingUp,
 } from 'lucide-react';
 
 import {
@@ -33,15 +34,14 @@ type Plant = { id: number; growth: number };
 type GameStatus = 'playing' | 'chapter-clear' | 'failed' | 'complete';
 
 const CHAPTERS = [
-  { goal: 42, seconds: 32, name: '一株起步' },
-  { goal: 125, seconds: 30, name: '账单加码' },
-  { goal: 260, seconds: 30, name: '订单堆积' },
-  { goal: 430, seconds: 28, name: '黄昏催收' },
-  { goal: 650, seconds: 32, name: '霜王来袭', boss: true },
+  { goal: 8, seconds: 32, name: '一株起步' },
+  { goal: 28, seconds: 30, name: '账单加码' },
+  { goal: 70, seconds: 30, name: '订单堆积' },
+  { goal: 140, seconds: 28, name: '黄昏催收' },
+  { goal: 250, seconds: 32, name: '霜王来袭', boss: true },
 ] as const;
 
 const INITIAL_GROWTH = [45];
-const HARVEST_VALUE = 14;
 const MAX_PLANTS = 12;
 
 function makeInitialPlants(): Plant[] {
@@ -59,23 +59,29 @@ export default function Home() {
   const [chapter, setChapter] = useState(1);
   const [timeLeft, setTimeLeft] = useState(CHAPTERS[0].seconds);
   const [clickLevel, setClickLevel] = useState(0);
+  const [plantLevel, setPlantLevel] = useState(1);
   const [areaLevel, setAreaLevel] = useState(0);
   const [cloneCount, setCloneCount] = useState(0);
   const [selectedId, setSelectedId] = useState(1);
   const [status, setStatus] = useState<GameStatus>('playing');
   const [notice, setNotice] = useState('点击植物开始照料');
+  const [coinBurst, setCoinBurst] = useState({ amount: 0, serial: 0 });
   const nextId = useRef(INITIAL_GROWTH.length + 1);
+  const coinBurstTimer = useRef<number | null>(null);
 
   const chapterData = CHAPTERS[chapter - 1];
   const isBoss = Boolean(chapterData.boss);
   const clickPower = Math.round((18 + clickLevel * 7) * (isBoss ? 0.72 : 1));
   const naturalRate = isBoss ? 0.55 : 1.25;
-  const clickCost = Math.round(30 * 1.65 ** clickLevel);
-  const cloneCost = Math.round(28 * 1.55 ** cloneCount);
-  const areaCost = areaLevel === 0 ? 75 : 165;
+  const harvestValue = plantLevel;
+  const plantLevelCost = Math.round(4 * 1.85 ** (plantLevel - 1));
+  const clickCost = Math.round(8 * 1.65 ** clickLevel);
+  const cloneCost = Math.round(7 * 1.55 ** cloneCount);
+  const areaCost = areaLevel === 0 ? 24 : 55;
   const goalPercent = Math.min(100, (coins / chapterData.goal) * 100);
   const gap = Math.max(0, chapterData.goal - coins);
   const selectedPlant = plants.find((plant) => plant.id === selectedId) ?? plants[0];
+  const coinBurstTier = coinBurst.amount >= 12 ? 'large' : coinBurst.amount >= 4 ? 'medium' : 'small';
 
   const rowWidth = 3;
   const positions = useMemo(
@@ -110,6 +116,18 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [notice]);
 
+  useEffect(() => () => {
+    if (coinBurstTimer.current) window.clearTimeout(coinBurstTimer.current);
+  }, []);
+
+  function showCoinGain(amount: number) {
+    if (coinBurstTimer.current) window.clearTimeout(coinBurstTimer.current);
+    setCoinBurst((current) => ({ amount: current.amount + amount, serial: current.serial + 1 }));
+    coinBurstTimer.current = window.setTimeout(() => {
+      setCoinBurst((current) => ({ ...current, amount: 0 }));
+    }, 700);
+  }
+
   function tendPlant(index: number) {
     if (status !== 'playing') return;
     const target = plants[index];
@@ -133,12 +151,20 @@ export default function Home() {
         return { ...plant, growth: Math.min(100, plant.growth + growthPower) };
       });
       if (harvested > 0) {
-        const income = harvested * HARVEST_VALUE;
+        const income = harvested * harvestValue;
         setCoins((value) => value + income);
+        showCoinGain(income);
         setNotice(harvested > 1 ? `范围收获 ${harvested} 株，金币 +${income}` : `收获日光芽，金币 +${income}`);
       }
       return next;
     });
+  }
+
+  function upgradePlantLevel() {
+    if (coins < plantLevelCost) return;
+    setCoins((value) => value - plantLevelCost);
+    setPlantLevel((value) => value + 1);
+    setNotice(`植物升至 Lv.${plantLevel + 1}：每株产出 ${plantLevel + 1} 金币`);
   }
 
   function buyClickPower() {
@@ -179,10 +205,13 @@ export default function Home() {
     setChapter(1);
     setTimeLeft(CHAPTERS[0].seconds);
     setClickLevel(0);
+    setPlantLevel(1);
     setAreaLevel(0);
     setCloneCount(0);
     setSelectedId(1);
     nextId.current = INITIAL_GROWTH.length + 1;
+    if (coinBurstTimer.current) window.clearTimeout(coinBurstTimer.current);
+    setCoinBurst({ amount: 0, serial: 0 });
     setStatus('playing');
     setNotice('新一轮开始：先催熟接近成熟的植物');
   }
@@ -196,7 +225,11 @@ export default function Home() {
             <h1 className="text-3xl font-black tracking-[-0.04em] sm:text-4xl">温室账单</h1>
           </div>
           <div className="flex w-full gap-2 sm:w-auto">
-            <div className="stat-chip"><Coins /> <span><b>{coins}</b><small>当前金币</small></span></div>
+            <div key={coinBurst.serial} className={`stat-chip coin-chip ${coinBurst.amount > 0 ? `coin-hit-${coinBurstTier}` : ''}`}>
+              <Coins />
+              <span><b>{coins}</b><small>当前金币</small></span>
+              {coinBurst.amount > 0 && <i className={`coin-burst ${coinBurstTier}`}>+{coinBurst.amount}</i>}
+            </div>
             <div className={`stat-chip ${timeLeft <= 8 ? 'is-urgent' : ''}`}><Timer /> <span><b>{formatTime(timeLeft)}</b><small>结算倒计时</small></span></div>
           </div>
         </header>
@@ -238,7 +271,7 @@ export default function Home() {
                   >
                     <span className="plot-number">{String(index + 1).padStart(2, '0')}</span>
                     <Sprout aria-hidden="true" style={{ transform: `scale(${0.72 + plant.growth / 360})` }} />
-                    <span className="plant-name">{ripe ? '点击收获 +14' : '日光芽'}</span>
+                    <span className="plant-name">{ripe ? `点击收获 +${harvestValue}` : `日光芽 Lv.${plantLevel}`}</span>
                     <span className="growth-track"><i style={{ width: `${plant.growth}%` }} /></span>
                     <span className="growth-value">{Math.round(plant.growth)}%</span>
                   </button>
@@ -260,6 +293,11 @@ export default function Home() {
             <p className="mb-4 mt-1 text-xs leading-relaxed text-muted-foreground">投资会降低本章持有金币。越接近结算，选择越要谨慎。</p>
 
             <div className="upgrade-row">
+              <div className="upgrade-icon"><TrendingUp /></div>
+              <div className="min-w-0 flex-1"><h3>植物等级 <em>Lv.{plantLevel}</em></h3><p>每株产出 {harvestValue} → {harvestValue + 1} 金币</p></div>
+              <Button onClick={upgradePlantLevel} disabled={coins < plantLevelCost}>{plantLevelCost} ◎</Button>
+            </div>
+            <div className="upgrade-row">
               <div className="upgrade-icon"><Droplets /></div>
               <div className="min-w-0 flex-1"><h3>强效浇灌 <em>Lv.{clickLevel}</em></h3><p>点击成长 +7%</p></div>
               <Button onClick={buyClickPower} disabled={coins < clickCost}>{clickCost} ◎</Button>
@@ -277,7 +315,7 @@ export default function Home() {
 
             <div className="manual-card">
               <Leaf />
-              <div><b>当前选中：第 {plants.findIndex((plant) => plant.id === selectedId) + 1} 株</b><span>复制会保留它现在的生长度。</span></div>
+              <div><b>当前选中：第 {plants.findIndex((plant) => plant.id === selectedId) + 1} 株 · 产出 {harvestValue}</b><span>复制会保留它现在的生长度。</span></div>
             </div>
           </aside>
         </section>
