@@ -101,7 +101,7 @@ const RELICS: Array<{
     id: 'fertilizer',
     name: '金坷垃',
     branch: '倍倍',
-    description: '成熟植物放置一段时间后，储存金币翻倍。',
+    description: '加快全场生长；成熟植物放置越久，金币蓄积倍率越高。',
     baseCost: 6,
   },
   {
@@ -231,9 +231,25 @@ function describeBossModifier(modifier: BossModifier | null) {
   };
 }
 
-function relicCost(id: RelicId, level: number) {
+function relicCost(
+  id: RelicId,
+  level: number,
+  purchaseCount: number,
+  upgradeCount: number,
+) {
   const relic = RELICS.find((item) => item.id === id)!;
-  return Math.round(relic.baseCost * 1.7 ** level);
+  if (level === 0) {
+    return Math.round(relic.baseCost * 8 * 1.7 ** purchaseCount);
+  }
+  return Math.round(
+    relic.baseCost * 10 * 1.85 ** level * 1.18 ** upgradeCount,
+  );
+}
+
+function fertilizerCap(level: number) {
+  if (level >= 6) return 8;
+  if (level >= 3) return 4;
+  return 2;
 }
 
 function drawRelicOffers(levels: RelicLevels) {
@@ -249,21 +265,21 @@ function relicEffect(id: RelicId, level: number) {
   const shownLevel = Math.max(1, level);
   switch (id) {
     case 'autoHarvester':
-      return `自动收获；额外催熟 +${(shownLevel * 0.6).toFixed(1)}%/秒`;
+      return `自动收获；额外催熟 +${(shownLevel * 1.2).toFixed(1)}%/秒`;
     case 'goldenDrop':
-      return `植物金币 +${shownLevel * 12}%，自动生长 +${(shownLevel * 0.3).toFixed(1)}%/秒`;
+      return `植物金币 +${shownLevel * 20}%，自动生长 +${(shownLevel * 0.6).toFixed(1)}%/秒`;
     case 'fertilizer':
-      return `${Math.max(2.5, 5.5 - shownLevel * 0.5).toFixed(1)} 秒未收获后储存 ×2 金币`;
+      return `生长速度 +${50 + (shownLevel - 1) * 15}%；每 ${Math.max(2.5, 5.5 - shownLevel * 0.5).toFixed(1)} 秒蓄积翻倍，最高 ×${fertilizerCap(shownLevel)}`;
     case 'infinityBlade':
-      return `暴击率 +${5 + shownLevel * 3}%，暴击倍率 ×${(1.75 + shownLevel * 0.25).toFixed(2)}`;
+      return `暴击率 +${8 + shownLevel * 5}%，暴击倍率 ×${(2.25 + shownLevel * 0.35).toFixed(2)}`;
     case 'midasHand':
-      return `手动收获倍率 ×${(2 + (shownLevel - 1) * 0.25).toFixed(2)}`;
+      return `手动收获倍率 ×${(2.5 + (shownLevel - 1) * 0.5).toFixed(2)}`;
     case 'critRing':
-      return `暴击率 +${shownLevel * 3}%，最多重复暴击 ${shownLevel} 次`;
+      return `暴击率 +${shownLevel * 5}%，最多重复暴击 ${shownLevel * 2} 次`;
     case 'bigDog':
-      return `每 ${Math.max(30, 90 - shownLevel * 10)} 次收获，随机植物等级 +1`;
+      return `每 ${Math.max(24, 72 - shownLevel * 8)} 次收获，随机植物等级 +${Math.ceil(shownLevel / 2)}`;
     case 'maodie':
-      return `每 ${Math.max(30, 90 - shownLevel * 10)} 次收获，随机植物进度 -15%，间隔缩短`;
+      return `每 ${Math.max(24, 72 - shownLevel * 8)} 次收获，随机植物进度 -${Math.max(5, 18 - shownLevel * 2)}%，间隔 -${120 + shownLevel * 40}ms`;
   }
 }
 
@@ -312,7 +328,14 @@ export default function Home() {
     ? Math.round(4 * 1.85 ** (selectedPlant.level - 1))
     : 4;
   const bossModifierCopy = describeBossModifier(activeBossModifier);
-  const refreshCost = 8 + bigChapter * 4 + shopRefreshes * 4;
+  const relicPurchaseCount = Object.values(relicLevels).filter(
+    (level) => level > 0,
+  ).length;
+  const relicUpgradeCount = Object.values(relicLevels).reduce(
+    (total, level) => total + Math.max(0, level - 1),
+    0,
+  );
+  const refreshCost = 25 + bigChapter * 10 + shopRefreshes * 15;
   const coinBurstTier =
     coinBurst.amount >= 12
       ? 'large'
@@ -384,24 +407,25 @@ export default function Home() {
         plant.level *
         (plant.golden ? 2 : 1) *
         plant.storedMultiplier *
-        (1 + relicLevels.goldenDrop * 0.12);
+        (1 + relicLevels.goldenDrop * 0.2);
 
       if (mode === 'manual' && relicLevels.midasHand > 0) {
-        plantIncome *= 2 + (relicLevels.midasHand - 1) * 0.25;
+        plantIncome *= 2.5 + (relicLevels.midasHand - 1) * 0.5;
       }
 
       const critChance = Math.min(
-        0.7,
+        0.85,
         (relicLevels.infinityBlade > 0
-          ? 0.05 + relicLevels.infinityBlade * 0.03
+          ? 0.08 + relicLevels.infinityBlade * 0.05
           : 0) +
-          relicLevels.critRing * 0.03,
+          relicLevels.critRing * 0.05,
       );
       const critMultiplier =
         relicLevels.infinityBlade > 0
-          ? 1.75 + relicLevels.infinityBlade * 0.25
+          ? 2.25 + relicLevels.infinityBlade * 0.35
           : 2;
-      const maxCrits = relicLevels.critRing > 0 ? 1 + relicLevels.critRing : 1;
+      const maxCrits =
+        relicLevels.critRing > 0 ? 1 + relicLevels.critRing * 2 : 1;
       for (let attempt = 0; attempt < maxCrits; attempt += 1) {
         if (Math.random() >= critChance) break;
         plantIncome *= critMultiplier;
@@ -449,27 +473,29 @@ export default function Home() {
           );
           events.push('生成黄金植物');
         } else {
-          directBonus += 100 * relicLevels.goldenDrop;
-          events.push(`黄金碎片兑换 +${100 * relicLevels.goldenDrop}`);
+          directBonus += 250 * relicLevels.goldenDrop;
+          events.push(`黄金碎片兑换 +${250 * relicLevels.goldenDrop}`);
         }
       }
     }
 
     if (relicLevels.bigDog > 0 && nextPlants.length > 0) {
-      const threshold = Math.max(30, 90 - relicLevels.bigDog * 10);
+      const threshold = Math.max(24, 72 - relicLevels.bigDog * 8);
       nextStats.bigDogProgress += harvested;
       while (nextStats.bigDogProgress >= threshold) {
         nextStats.bigDogProgress -= threshold;
         const chosenIndex = randomIndex(nextPlants.length);
         nextPlants = nextPlants.map((plant, index) =>
-          index === chosenIndex ? { ...plant, level: plant.level + 1 } : plant,
+          index === chosenIndex
+            ? { ...plant, level: plant.level + Math.ceil(relicLevels.bigDog / 2) }
+            : plant,
         );
         events.push(`大狗升级第 ${chosenIndex + 1} 株`);
       }
     }
 
     if (relicLevels.maodie > 0 && nextPlants.length > 0) {
-      const threshold = Math.max(30, 90 - relicLevels.maodie * 10);
+      const threshold = Math.max(24, 72 - relicLevels.maodie * 8);
       nextStats.maodieProgress += harvested;
       while (nextStats.maodieProgress >= threshold) {
         nextStats.maodieProgress -= threshold;
@@ -478,10 +504,15 @@ export default function Home() {
           index === chosenIndex
             ? {
                 ...plant,
-                growth: plant.golden ? 100 : Math.max(0, plant.growth - 15),
+                growth: plant.golden
+                  ? 100
+                  : Math.max(
+                      0,
+                      plant.growth - Math.max(5, 18 - relicLevels.maodie * 2),
+                    ),
                 minHarvestMs: Math.max(
                   MIN_HARVEST_MS,
-                  plant.minHarvestMs - (80 + relicLevels.maodie * 20),
+                  plant.minHarvestMs - (120 + relicLevels.maodie * 40),
                 ),
               }
             : plant,
@@ -526,7 +557,11 @@ export default function Home() {
       const now = Date.now();
       setTimeLeft((value) => Math.max(0, value - 0.25));
       const autoGrowth =
-        relicLevels.autoHarvester * 0.6 + relicLevels.goldenDrop * 0.3;
+        relicLevels.autoHarvester * 1.2 + relicLevels.goldenDrop * 0.6;
+      const fertilizerGrowthMultiplier =
+        relicLevels.fertilizer > 0
+          ? 1.5 + (relicLevels.fertilizer - 1) * 0.15
+          : 1;
       const fertilizerWait = Math.max(
         2500,
         5500 - relicLevels.fertilizer * 500,
@@ -538,7 +573,8 @@ export default function Home() {
           ? 100
           : Math.min(
               100,
-              plant.growth + (naturalRate + autoGrowth) * 0.25,
+              plant.growth +
+                (naturalRate + autoGrowth) * fertilizerGrowthMultiplier * 0.25,
             );
         const reachedMaturity = plant.growth < 100 && nextGrowth >= 100;
         const ripeSince = reachedMaturity
@@ -546,16 +582,22 @@ export default function Home() {
           : nextGrowth >= 100
             ? (plant.ripeSince ?? now)
             : null;
-        const shouldStoreDouble =
-          relicLevels.fertilizer > 0 &&
-          nextGrowth >= 100 &&
-          ripeSince !== null &&
-          now - ripeSince >= fertilizerWait;
+        const storageSteps =
+          relicLevels.fertilizer > 0 && nextGrowth >= 100 && ripeSince !== null
+            ? Math.floor((now - ripeSince) / fertilizerWait)
+            : 0;
+        const storedMultiplier =
+          storageSteps > 0
+            ? Math.min(
+                fertilizerCap(relicLevels.fertilizer),
+                2 ** storageSteps,
+              )
+            : plant.storedMultiplier;
         return {
           ...plant,
           growth: nextGrowth,
           ripeSince,
-          storedMultiplier: shouldStoreDouble ? 2 : plant.storedMultiplier,
+          storedMultiplier,
         };
       });
 
@@ -709,7 +751,12 @@ export default function Home() {
 
   function buyRelic(id: RelicId) {
     const level = relicLevels[id];
-    const cost = relicCost(id, level);
+    const cost = relicCost(
+      id,
+      level,
+      relicPurchaseCount,
+      relicUpgradeCount,
+    );
     if (level >= 6 || coins < cost) return;
     setCoins((value) => value - cost);
     setRelicLevels((current) => ({ ...current, [id]: level + 1 }));
@@ -836,14 +883,14 @@ export default function Home() {
                     type="button"
                     onClick={() => tendPlant(index)}
                     disabled={disabled}
-                    className={`plant-card ${ripe ? 'is-ripe' : ''} ${selected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''} ${plant.golden ? 'is-golden' : ''} ${plant.storedMultiplier > 1 ? 'is-stored' : ''}`}
+                    className={`plant-card ${ripe ? 'is-ripe' : ''} ${selected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''} ${plant.golden ? 'is-golden' : ''} ${plant.storedMultiplier > 1 ? 'is-stored' : ''} ${plant.storedMultiplier >= 4 ? 'stored-high' : ''} ${plant.storedMultiplier >= 8 ? 'stored-max' : ''}`}
                     aria-label={`第 ${index + 1} 株植物，等级 ${plant.level}，成长 ${Math.round(plant.growth)}%，最小收获间隔 ${(plant.minHarvestMs / 1000).toFixed(1)} 秒`}
                   >
                     <span className="plot-number">{String(index + 1).padStart(2, '0')}</span>
                     {plant.golden && <span className="golden-mark"><Sparkles /> 黄金</span>}
                     <Sprout aria-hidden="true" style={{ transform: `scale(${0.72 + plant.growth / 360})` }} />
                     <span className="plant-name">
-                      {disabled ? 'Boss 已禁用' : plant.storedMultiplier > 1 ? '金币已储存 ×2' : ripe ? `可收获 · Lv.${plant.level}` : `日光芽 Lv.${plant.level}`}
+                      {disabled ? 'Boss 已禁用' : plant.storedMultiplier > 1 ? `金币蓄积 ×${plant.storedMultiplier}` : ripe ? `可收获 · Lv.${plant.level}` : `日光芽 Lv.${plant.level}`}
                     </span>
                     <span className="growth-track"><i style={{ width: `${plant.growth}%` }} /></span>
                     <span className="growth-value"><span>{Math.round(plant.growth)}%</span><span>间隔 {(plant.minHarvestMs / 1000).toFixed(1)}s</span></span>
@@ -910,14 +957,19 @@ export default function Home() {
               {shopOffers.map((relicId, index) => {
                 const relic = RELICS.find((item) => item.id === relicId)!;
                 const level = relicLevels[relic.id];
-                const cost = relicCost(relic.id, level);
+                const cost = relicCost(
+                  relic.id,
+                  level,
+                  relicPurchaseCount,
+                  relicUpgradeCount,
+                );
                 const maxed = level >= 6;
                 const progress = relic.id === 'goldenDrop'
                   ? `${harvestStats.goldenProgress}/1000 · 碎片 ${harvestStats.fragments}/4`
                   : relic.id === 'bigDog'
-                    ? `${harvestStats.bigDogProgress}/${Math.max(30, 90 - Math.max(1, level) * 10)}`
+                    ? `${harvestStats.bigDogProgress}/${Math.max(24, 72 - Math.max(1, level) * 8)}`
                     : relic.id === 'maodie'
-                      ? `${harvestStats.maodieProgress}/${Math.max(30, 90 - Math.max(1, level) * 10)}`
+                      ? `${harvestStats.maodieProgress}/${Math.max(24, 72 - Math.max(1, level) * 8)}`
                       : null;
                 return (
                   <article className={`relic-card ${level > 0 ? 'is-owned' : ''}`} key={relic.id}>
@@ -935,7 +987,7 @@ export default function Home() {
             </div>
 
             <footer className="shop-footer">
-              <p>商店只在章末开放。刷新会重新随机三个遗物，费用逐次增加。</p>
+              <p>购入阶梯 {relicPurchaseCount} · 升级阶梯 {relicUpgradeCount}。每次购买或升级都会抬高同类后续价格。</p>
               <div className="flex gap-2">
                 <Button onClick={refreshShop} variant="outline" size="lg" disabled={coins < refreshCost}>刷新 · {refreshCost} ◎</Button>
                 <Button onClick={continueStage} size="lg">{safeStage >= TOTAL_STAGES ? '完成本轮' : `进入第 ${safeStage + 1} 小关`}</Button>

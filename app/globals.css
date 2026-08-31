@@ -190,6 +190,14 @@ body {
   @apply border-[#8d4d9b] bg-[#ead9ec] shadow-[inset_0_0_0_2px_#a862b4];
   animation: stored-pulse 1.1s ease-in-out infinite alternate;
 }
+.plant-card.stored-high {
+  @apply border-[#b52fa9] bg-[#f1c8e9] shadow-[inset_0_0_0_3px_#cd56bc,0_0_18px_#d35fc777];
+  animation: stored-high-pulse 0.75s ease-in-out infinite alternate;
+}
+.plant-card.stored-max {
+  @apply border-[#d18a00] bg-[#ffe29a] shadow-[inset_0_0_0_3px_#f1ae24,0_0_24px_#f1ae24aa];
+  animation: stored-max-pulse 0.55s ease-in-out infinite alternate;
+}
 .golden-mark {
   @apply absolute right-2 top-2 flex items-center gap-1 bg-[#bb7b05] px-1.5 py-0.5 font-mono text-[9px] font-bold text-white;
 }
@@ -365,6 +373,18 @@ body {
 @keyframes stored-pulse {
   to {
     filter: saturate(1.2) brightness(1.05);
+  }
+}
+@keyframes stored-high-pulse {
+  to {
+    filter: saturate(1.45) brightness(1.1);
+    transform: translateY(-2px);
+  }
+}
+@keyframes stored-max-pulse {
+  to {
+    filter: saturate(1.65) brightness(1.16);
+    transform: translateY(-3px) scale(1.015);
   }
 }
 @keyframes urgent-pulse {
