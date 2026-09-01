@@ -692,7 +692,6 @@ export default function Home() {
     const nextStats = { ...harvestStatsRef.current };
     nextStats.total += harvested;
     const events: string[] = [];
-    let directBonus = 0;
 
     if (relicLevels.goldenDrop > 0) {
       nextStats.goldenProgress += harvested;
@@ -701,9 +700,11 @@ export default function Home() {
         nextStats.fragments += 1;
       }
       while (nextStats.fragments >= 4) {
-        const regularPlants = nextPlants.filter((plant) => !plant.golden);
+        const regularPlants = nextPlants.filter(
+          (plant) => !plant.golden && !plant.diamond,
+        );
+        nextStats.fragments -= 4;
         if (regularPlants.length > 0) {
-          nextStats.fragments -= 4;
           const chosen = regularPlants[randomIndex(regularPlants.length)];
           nextPlants = nextPlants.map((plant) =>
             plant.id === chosen.id
@@ -721,40 +722,33 @@ export default function Home() {
               : plant,
           );
           events.push('生成黄金植物 · 间隔 -0.2s');
-        } else if (fusedRelics.goldenHarvester) {
-          nextStats.fragments -= 4;
-          nextStats.diamondFragments += 1;
-          events.push('黄金植物已满 · 钻石碎片 +1');
         } else {
-          nextStats.fragments -= 4;
-          directBonus += 250 * relicLevels.goldenDrop;
-          events.push(`黄金碎片兑换 +${250 * relicLevels.goldenDrop}`);
+          nextStats.diamondFragments += 1;
+          events.push('无普通植物可转化 · 钻石碎片 +1');
         }
       }
     }
 
-    if (fusedRelics.goldenHarvester) {
-      while (nextStats.diamondFragments >= DIAMOND_FRAGMENT_REQUIREMENT) {
-        const goldenPlants = nextPlants.filter(
-          (plant) => plant.golden && !plant.diamond,
-        );
-        if (goldenPlants.length === 0) break;
-        nextStats.diamondFragments -= DIAMOND_FRAGMENT_REQUIREMENT;
-        const chosen = goldenPlants[randomIndex(goldenPlants.length)];
-        nextPlants = nextPlants.map((plant) =>
-          plant.id === chosen.id
-            ? {
-                ...plant,
-                diamond: true,
-                minHarvestMs: shortenHarvestInterval(
-                  plant.minHarvestMs,
-                  fusedRelics.catDog,
-                ),
-              }
-            : plant,
-        );
-        events.push('黄金植物升级为钻石植物 · 间隔 -0.2s');
-      }
+    while (nextStats.diamondFragments >= DIAMOND_FRAGMENT_REQUIREMENT) {
+      const goldenPlants = nextPlants.filter(
+        (plant) => plant.golden && !plant.diamond,
+      );
+      if (goldenPlants.length === 0) break;
+      nextStats.diamondFragments -= DIAMOND_FRAGMENT_REQUIREMENT;
+      const chosen = goldenPlants[randomIndex(goldenPlants.length)];
+      nextPlants = nextPlants.map((plant) =>
+        plant.id === chosen.id
+          ? {
+              ...plant,
+              diamond: true,
+              minHarvestMs: shortenHarvestInterval(
+                plant.minHarvestMs,
+                fusedRelics.catDog,
+              ),
+            }
+          : plant,
+      );
+      events.push('钻石碎片 ×4 · 黄金植物升级为钻石植物');
     }
 
     if (relicLevels.bigDog > 0 && nextPlants.length > 0) {
@@ -822,7 +816,7 @@ export default function Home() {
             ),
           )
         : grossIncome;
-    const finalIncome = taxedIncome + directBonus;
+    const finalIncome = taxedIncome;
 
     commitPlants(nextPlants);
     commitHarvestStats(nextStats);
@@ -1429,8 +1423,8 @@ export default function Home() {
               )}
               {fusedRelics.goldenHarvester && (
                 <div className="floating-meter diamond-meter">
-                  <span><b>钻石碎片 {harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT}</b><small>黄金碎片 {harvestStats.fragments}/4</small></span>
-                  <progress value={harvestStats.fragments} max={4} aria-label={`钻石碎片 ${harvestStats.diamondFragments} 枚，黄金碎片替补进度 ${harvestStats.fragments}/4`} />
+                  <span><b>钻石碎片</b><small>{harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT}</small></span>
+                  <progress value={harvestStats.diamondFragments} max={DIAMOND_FRAGMENT_REQUIREMENT} aria-label={`钻石碎片 ${harvestStats.diamondFragments}/${DIAMOND_FRAGMENT_REQUIREMENT}，黄金碎片满4且无普通植物时获得`} />
                 </div>
               )}
             </div>
@@ -1674,7 +1668,7 @@ export default function Home() {
                         <h4>{fusion.name}</h4>
                         <p>{fusion.description}</p>
                         {fusion.id === 'goldenHarvester' && fused && (
-                          <small>钻石碎片 {harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT} · 黄金碎片 {harvestStats.fragments}/4</small>
+                          <small>钻石碎片 {harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT} · 黄金碎片满4且无普通植物时 +1</small>
                         )}
                         <Button onClick={() => fuseRelic(fusion.id)} disabled={!ready || fused} className="w-full">
                           {fused ? '融合完成' : ready ? '立即融合' : '需要两件 Lv.6 素材'}
