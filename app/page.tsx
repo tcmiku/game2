@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BadgeCheck,
   CircleAlert,
@@ -70,10 +70,20 @@ type HarvestStats = {
   bigDogProgress: number;
   maodieProgress: number;
 };
+type LeaderboardEntry = {
+  id: number;
+  playerName: string;
+  score: number;
+  createdAt: string;
+};
 
 const TOTAL_CHAPTERS = 6;
 const STAGES_PER_CHAPTER = 5;
-const TOTAL_STAGES = TOTAL_CHAPTERS * STAGES_PER_CHAPTER;
+const CAMPAIGN_STAGES = TOTAL_CHAPTERS * STAGES_PER_CHAPTER;
+const FRENZY_STAGE = CAMPAIGN_STAGES + 1;
+const TOTAL_STAGES = FRENZY_STAGE;
+const FRENZY_SECONDS = 60;
+const FRENZY_COIN_MULTIPLIER = 5;
 const SHOP_UNLOCK_STAGE = STAGES_PER_CHAPTER * 2;
 const MAX_RELIC_SLOTS = 4;
 const GOLDEN_FRAGMENT_HARVESTS = 100;
@@ -87,12 +97,12 @@ function getStageGoal(stage: number) {
     Math.round(8 + 5.5 * (targetStage - 1) ** 2);
 
   if (stage < DIFFICULTY_RAMP_START_STAGE) return baseGoal(stage);
-  if (stage === TOTAL_STAGES) return FINAL_STAGE_GOAL;
+  if (stage === CAMPAIGN_STAGES) return FINAL_STAGE_GOAL;
 
   const anchorStage = DIFFICULTY_RAMP_START_STAGE - 1;
   const anchorGoal = baseGoal(anchorStage);
   const rampProgress =
-    (stage - anchorStage) / (TOTAL_STAGES - anchorStage);
+    (stage - anchorStage) / (CAMPAIGN_STAGES - anchorStage);
 
   return Math.round(
     anchorGoal * (FINAL_STAGE_GOAL / anchorGoal) ** rampProgress,
@@ -101,6 +111,16 @@ function getStageGoal(stage: number) {
 
 const STAGES = Array.from({ length: TOTAL_STAGES }, (_, index) => {
   const stage = index + 1;
+  if (stage === FRENZY_STAGE) {
+    return {
+      stage,
+      chapter: TOTAL_CHAPTERS,
+      goal: 0,
+      seconds: FRENZY_SECONDS,
+      name: '终局狂热 · 金币狂潮',
+      boss: false,
+    };
+  }
   const chapter = Math.ceil(stage / STAGES_PER_CHAPTER);
   const isBoss = stage % STAGES_PER_CHAPTER === 0;
   return {
@@ -436,23 +456,31 @@ export default function Home() {
     ids: [] as number[],
     serial: 0,
   });
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [playerName, setPlayerName] = useState('');
+  const [leaderboardState, setLeaderboardState] = useState<
+    'idle' | 'loading' | 'submitting' | 'submitted' | 'error'
+  >('idle');
   const nextId = useRef(2);
   const coinBurstTimer = useRef<number | null>(null);
   const harvestEffectTimer = useRef<number | null>(null);
 
   const safeStage = Math.min(Math.max(stage, 1), TOTAL_STAGES);
   const stageData = STAGES[safeStage - 1];
+  const isFrenzy = safeStage === FRENZY_STAGE;
   const bigChapter = Math.ceil(safeStage / STAGES_PER_CHAPTER);
   const stageInChapter = ((safeStage - 1) % STAGES_PER_CHAPTER) + 1;
   const isBossStage = stageData.boss;
   const activeBossModifier = isBossStage ? bossModifier : null;
   const clickPower = 18 + clickLevel * 7;
-  const naturalRate = 6.25;
+  const naturalRate = 6.25 * (isFrenzy ? 4 : 1);
   const clickCost = Math.round(8 * 1.65 ** clickLevel);
   const cloneCost = Math.round(7 * 1.55 ** cloneCount);
   const areaCost = areaLevel === 0 ? 24 : 55;
-  const goalPercent = Math.min(100, (coins / stageData.goal) * 100);
-  const gap = Math.max(0, stageData.goal - coins);
+  const goalPercent = isFrenzy
+    ? Math.min(100, ((FRENZY_SECONDS - timeLeft) / FRENZY_SECONDS) * 100)
+    : Math.min(100, (coins / stageData.goal) * 100);
+  const gap = isFrenzy ? 0 : Math.max(0, stageData.goal - coins);
   const selectedPlant =
     plants.find((plant) => plant.id === selectedId) ?? plants[0];
   const plantLevelCost = selectedPlant
@@ -612,6 +640,10 @@ export default function Home() {
 
       if (mode === 'auto' && relicLevels.autoHarvester > 0) {
         plantIncome *= 1.4;
+      }
+
+      if (isFrenzy) {
+        plantIncome *= FRENZY_COIN_MULTIPLIER;
       }
 
       const critChance = Math.min(
@@ -917,6 +949,11 @@ export default function Home() {
 
   useEffect(() => {
     if (status !== 'playing' || timeLeft > 0) return;
+    if (isFrenzy) {
+      setStatus('complete');
+      setNotice(`金币狂潮结束 · 最终得分 ${coins}`);
+      return;
+    }
     if (coins < stageData.goal) {
       setStatus('failed');
     } else {
@@ -931,7 +968,29 @@ export default function Home() {
         continueStage();
       }
     }
-  }, [coins, fusedRelics, isBossStage, relicLevels, safeStage, stageData.goal, status, timeLeft]);
+  }, [coins, fusedRelics, isBossStage, isFrenzy, relicLevels, safeStage, stageData.goal, status, timeLeft]);
+
+  useEffect(() => {
+    if (status !== 'complete') return;
+    let cancelled = false;
+    setLeaderboardState('loading');
+    fetch('/api/leaderboard')
+      .then((response) => {
+        if (!response.ok) throw new Error('排行榜加载失败');
+        return response.json() as Promise<{ entries: LeaderboardEntry[] }>;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setLeaderboard(data.entries);
+        setLeaderboardState('idle');
+      })
+      .catch(() => {
+        if (!cancelled) setLeaderboardState('error');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setNotice(''), 2600);
@@ -1162,7 +1221,7 @@ export default function Home() {
   }
 
   function openShop() {
-    if (status !== 'playing') return;
+    if (status !== 'playing' || isFrenzy) return;
     if (shopOffers.length === 0) {
       setShopOffers(drawRelicOffers(relicLevels, fusedRelics));
     }
@@ -1217,6 +1276,7 @@ export default function Home() {
         ? nextStageData.seconds - rolledModifier.seconds
         : nextStageData.seconds;
     setStage(nextStage);
+    if (nextStage === FRENZY_STAGE) setCoins(0);
     setConsoleStage(String(nextStage));
     setBossModifier(rolledModifier);
     setTimeLeft(adjustedSeconds);
@@ -1247,15 +1307,40 @@ export default function Home() {
         ? nextStageData.seconds - rolledModifier.seconds
         : nextStageData.seconds;
     setStage(nextStage);
+    if (nextStage === FRENZY_STAGE) {
+      setCoins(0);
+    }
     setBossModifier(rolledModifier);
     setTimeLeft(adjustedSeconds);
     setShopAdvancesStage(false);
     setStatus('playing');
     setNotice(
-      nextStageData.boss
+      nextStage === FRENZY_STAGE
+        ? '第31关 · 金币清零，60秒金币狂潮开始！'
+        : nextStageData.boss
         ? `章末 Boss 词条：${describeBossModifier(rolledModifier).title}`
         : `第 ${nextStage} 小关开始`,
     );
+  }
+
+  async function submitScore(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedName = playerName.trim();
+    if (!trimmedName || leaderboardState === 'submitting') return;
+    setLeaderboardState('submitting');
+    try {
+      const response = await fetch('/api/leaderboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerName: trimmedName, score: coins }),
+      });
+      if (!response.ok) throw new Error('提交失败');
+      const data = (await response.json()) as { entries: LeaderboardEntry[] };
+      setLeaderboard(data.entries);
+      setLeaderboardState('submitted');
+    } catch {
+      setLeaderboardState('error');
+    }
   }
 
   function restartGame() {
@@ -1274,6 +1359,9 @@ export default function Home() {
     setShopOffers([]);
     setShopRefreshes(0);
     setShopAdvancesStage(false);
+    setLeaderboard([]);
+    setPlayerName('');
+    setLeaderboardState('idle');
     commitHarvestStats({ ...EMPTY_HARVEST_STATS });
     nextId.current = 2;
     if (coinBurstTimer.current) window.clearTimeout(coinBurstTimer.current);
@@ -1283,7 +1371,24 @@ export default function Home() {
   }
 
   return (
-    <main className="game-shell min-h-screen bg-background px-4 pb-5 text-foreground sm:px-6 lg:px-8">
+    <main className={`game-shell min-h-screen bg-background px-4 pb-5 text-foreground sm:px-6 lg:px-8 ${isFrenzy ? 'is-frenzy' : ''}`}>
+      {isFrenzy && (
+        <div className="frenzy-blocks" aria-hidden="true">
+          {Array.from({ length: 28 }, (_, index) => (
+            <i
+              key={index}
+              style={{
+                left: `${(index * 37) % 96}%`,
+                top: `${(index * 53) % 92}%`,
+                width: `${18 + (index % 5) * 13}px`,
+                height: `${12 + (index % 4) * 11}px`,
+                animationDelay: `${-(index % 9) * 0.24}s`,
+                animationDuration: `${1.6 + (index % 6) * 0.22}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
       <div className="mx-auto max-w-7xl">
         <header className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
           <div>
@@ -1298,7 +1403,7 @@ export default function Home() {
             <div className="floating-stat-row">
               <div
                 key={coinBurst.serial}
-                className={`stat-chip coin-chip ${coinBurst.amount > 0 ? `coin-hit-${coinBurstTier}` : ''}`}
+                className={`stat-chip coin-chip ${isFrenzy ? 'is-frenzy-coin' : ''} ${coinBurst.amount > 0 ? `coin-hit-${coinBurstTier}` : ''}`}
               >
                 <Coins />
                 <span><b>{coins}</b><small>当前金币</small></span>
@@ -1306,15 +1411,15 @@ export default function Home() {
                   <i className={`coin-burst ${coinBurstTier}`}>+{coinBurst.amount}</i>
                 )}
               </div>
-              <div className={`stat-chip ${timeLeft <= 8 ? 'is-urgent' : ''}`}>
+              <div className={`stat-chip ${isFrenzy ? 'is-frenzy-timer' : ''} ${timeLeft <= 8 ? 'is-urgent' : ''}`}>
                 <Timer />
                 <span><b>{formatTime(timeLeft)}</b><small>结算倒计时</small></span>
               </div>
             </div>
             <div className="floating-progress-panel">
               <div className="floating-meter goal-meter">
-                <span><b>账单</b><small>{Math.round(goalPercent)}%</small></span>
-                <progress value={goalPercent} max={100} aria-label={`金币目标完成 ${Math.round(goalPercent)}%`} />
+                <span><b>{isFrenzy ? '狂潮进度' : '账单'}</b><small>{Math.round(goalPercent)}%</small></span>
+                <progress value={goalPercent} max={100} aria-label={isFrenzy ? `金币狂潮已进行 ${Math.round(goalPercent)}%` : `金币目标完成 ${Math.round(goalPercent)}%`} />
               </div>
               {relicLevels.goldenDrop > 0 && (
                 <div className="floating-meter golden-meter">
@@ -1337,8 +1442,8 @@ export default function Home() {
             <Button type="button" variant="outline" onClick={toggleConsole} aria-expanded={consoleOpen}>
               <Terminal /> 测试控制台
             </Button>
-            <Button type="button" onClick={openShop} disabled={status !== 'playing'}>
-              <Store /> 遗物商店 <span>{relicPurchaseCount === 0 ? '首件免费' : '已开放'}</span>
+            <Button type="button" onClick={openShop} disabled={status !== 'playing' || isFrenzy}>
+              <Store /> 遗物商店 <span>{isFrenzy ? '狂热封锁' : relicPurchaseCount === 0 ? '首件免费' : '已开放'}</span>
             </Button>
           </div>
           {consoleOpen && (
@@ -1360,12 +1465,19 @@ export default function Home() {
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_330px]">
           <div className="game-panel">
+            {isFrenzy && (
+              <div className="frenzy-countdown" role="timer" aria-live="off">
+                <span><Sparkles /> FRENZY MODE</span>
+                <b>{formatTime(timeLeft)}</b>
+                <small>金币收益 ×{FRENZY_COIN_MULTIPLIER} · 生长速度 ×4</small>
+              </div>
+            )}
             <div className="mb-5">
               <div>
-                <p className="eyebrow">第 {bigChapter} 章 · 小关 {stageInChapter}/{STAGES_PER_CHAPTER} · 总进度 {safeStage}/{TOTAL_STAGES}</p>
-                <h2 className="text-xl font-bold">{stageData.name} · 结算时持有 {stageData.goal} 金币</h2>
+                <p className="eyebrow">{isFrenzy ? '第31关 · 最终挑战 · 60秒' : `第 ${bigChapter} 章 · 小关 ${stageInChapter}/${STAGES_PER_CHAPTER} · 总进度 ${safeStage}/${TOTAL_STAGES}`}</p>
+                <h2 className="text-xl font-bold">{isFrenzy ? `${stageData.name} · 尽可能收集金币` : `${stageData.name} · 结算时持有 ${stageData.goal} 金币`}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {gap > 0 ? `还差 ${gap} 金币，升级消费也会减少当前金币。` : '目标已达成！守住余额直到结算。'}
+                  {isFrenzy ? '时间结束即通关，最终金币将作为排行榜成绩。' : gap > 0 ? `还差 ${gap} 金币，升级消费也会减少当前金币。` : '目标已达成！守住余额直到结算。'}
                 </p>
               </div>
             </div>
@@ -1466,22 +1578,22 @@ export default function Home() {
             <div className="upgrade-row">
               <div className="upgrade-icon"><TrendingUp /></div>
               <div className="min-w-0 flex-1"><h3>选中植物 <em>Lv.{selectedPlant?.level ?? 1}</em></h3><p>单株基础产出 +1</p></div>
-              <Button onClick={upgradeSelectedPlant} disabled={coins < plantLevelCost} data-upgrade-hotkey="q" aria-keyshortcuts="Q"><kbd>Q</kbd>{plantLevelCost} ◎</Button>
+              <Button onClick={upgradeSelectedPlant} disabled={isFrenzy || coins < plantLevelCost} data-upgrade-hotkey="q" aria-keyshortcuts="Q"><kbd>Q</kbd>{isFrenzy ? '锁定' : `${plantLevelCost} ◎`}</Button>
             </div>
             <div className="upgrade-row">
               <div className="upgrade-icon"><Droplets /></div>
               <div className="min-w-0 flex-1"><h3>强效浇灌 <em>Lv.{clickLevel}</em></h3><p>点击成长 +7%</p></div>
-              <Button onClick={buyClickPower} disabled={coins < clickCost} data-upgrade-hotkey="w" aria-keyshortcuts="W"><kbd>W</kbd>{clickCost} ◎</Button>
+              <Button onClick={buyClickPower} disabled={isFrenzy || coins < clickCost} data-upgrade-hotkey="w" aria-keyshortcuts="W"><kbd>W</kbd>{isFrenzy ? '锁定' : `${clickCost} ◎`}</Button>
             </div>
             <div className="upgrade-row">
               <div className="upgrade-icon"><CopyPlus /></div>
               <div className="min-w-0 flex-1"><h3>扦插繁育 <em>{plants.length}/{MAX_PLANTS}</em></h3><p>复制选中植物等级与间隔</p></div>
-              <Button onClick={cloneSelectedPlant} disabled={coins < cloneCost || plants.length >= MAX_PLANTS} data-upgrade-hotkey="e" aria-keyshortcuts="E"><kbd>E</kbd>{plants.length >= MAX_PLANTS ? '已满' : `${cloneCost} ◎`}</Button>
+              <Button onClick={cloneSelectedPlant} disabled={isFrenzy || coins < cloneCost || plants.length >= MAX_PLANTS} data-upgrade-hotkey="e" aria-keyshortcuts="E"><kbd>E</kbd>{isFrenzy ? '锁定' : plants.length >= MAX_PLANTS ? '已满' : `${cloneCost} ◎`}</Button>
             </div>
             <div className="upgrade-row">
               <div className="upgrade-icon"><Expand /></div>
               <div className="min-w-0 flex-1"><h3>扩散喷头 <em>Lv.{areaLevel}</em></h3><p>{areaLevel === 0 ? '催生并收获相邻植物' : areaLevel === 1 ? '范围扩大到 2 格' : '已覆盖最大范围'}</p></div>
-              <Button onClick={buyArea} disabled={coins < areaCost || areaLevel >= 2} data-upgrade-hotkey="r" aria-keyshortcuts="R"><kbd>R</kbd>{areaLevel >= 2 ? '满级' : `${areaCost} ◎`}</Button>
+              <Button onClick={buyArea} disabled={isFrenzy || coins < areaCost || areaLevel >= 2} data-upgrade-hotkey="r" aria-keyshortcuts="R"><kbd>R</kbd>{isFrenzy ? '锁定' : areaLevel >= 2 ? '满级' : `${areaCost} ◎`}</Button>
             </div>
 
             <div className="manual-card">
@@ -1585,17 +1697,62 @@ export default function Home() {
         </div>
       )}
 
-      {(status === 'failed' || status === 'complete') && (
+      {status === 'failed' && (
         <div className="result-backdrop">
           <section className="result-card" role="dialog" aria-modal="true" aria-labelledby="result-title" aria-describedby="result-description">
-            <div className={`result-media ${status === 'failed' ? 'is-failed' : ''}`}>{status === 'failed' ? <CircleAlert /> : <BadgeCheck />}</div>
+            <div className="result-media is-failed"><CircleAlert /></div>
             <div>
-              <h2 id="result-title" className="result-title">{status === 'failed' ? '金币检测未通过' : '前期与中期阶段完成！'}</h2>
-              <p id="result-description" className="result-description">
-                {status === 'failed' ? `第 ${safeStage} 关结算需要 ${stageData.goal} 金币，你持有 ${coins} 金币，还差 ${gap}。` : `你完成了 6 个章节、30 个小关与 6 场章末 Boss 战。`}
-              </p>
+              <h2 id="result-title" className="result-title">金币检测未通过</h2>
+              <p id="result-description" className="result-description">第 {safeStage} 关结算需要 {stageData.goal} 金币，你持有 {coins} 金币，还差 {gap}。</p>
             </div>
             <div className="result-footer"><Button onClick={restartGame}><RotateCcw /> 重新开始</Button></div>
+          </section>
+        </div>
+      )}
+
+      {status === 'complete' && (
+        <div className="result-backdrop frenzy-result-backdrop">
+          <section className="result-card frenzy-result-card" role="dialog" aria-modal="true" aria-labelledby="result-title" aria-describedby="result-description">
+            <div className="frenzy-result-heading">
+              <div className="result-media"><BadgeCheck /></div>
+              <div>
+                <p className="eyebrow">FRENZY COMPLETE</p>
+                <h2 id="result-title" className="result-title">金币狂潮通关！</h2>
+                <p id="result-description" className="result-description">31关全部完成，狂热模式最终成绩为 <b>{coins}</b> 金币。</p>
+              </div>
+            </div>
+
+            <form className="score-submit" onSubmit={submitScore}>
+              <label htmlFor="player-name">提交排行榜</label>
+              <div>
+                <Input id="player-name" value={playerName} onChange={(event) => setPlayerName(event.target.value)} maxLength={16} placeholder="输入昵称（最多16字）" disabled={leaderboardState === 'submitting' || leaderboardState === 'submitted'} />
+                <Button type="submit" disabled={!playerName.trim() || leaderboardState === 'submitting' || leaderboardState === 'submitted'}>
+                  {leaderboardState === 'submitting' ? '提交中…' : leaderboardState === 'submitted' ? '已提交' : `提交 ${coins} 分`}
+                </Button>
+              </div>
+              {leaderboardState === 'error' && <p>排行榜暂时不可用，请稍后重试。</p>}
+            </form>
+
+            <section className="leaderboard" aria-labelledby="leaderboard-title">
+              <div><h3 id="leaderboard-title">金币狂潮排行榜</h3><span>TOP 10</span></div>
+              {leaderboardState === 'loading' ? (
+                <p>正在读取排行榜…</p>
+              ) : leaderboard.length > 0 ? (
+                <ol>
+                  {leaderboard.map((entry, index) => (
+                    <li key={entry.id}>
+                      <i>{String(index + 1).padStart(2, '0')}</i>
+                      <b>{entry.playerName}</b>
+                      <strong>{entry.score}</strong>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p>还没有成绩，成为第一名吧。</p>
+              )}
+            </section>
+
+            <div className="result-footer"><Button onClick={restartGame}><RotateCcw /> 再来一轮</Button></div>
           </section>
         </div>
       )}
