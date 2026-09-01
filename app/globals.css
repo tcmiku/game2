@@ -73,6 +73,34 @@ body {
   background-size: 24px 24px;
 }
 
+.game-shell {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 5.75rem);
+}
+.floating-stats {
+  @apply fixed flex gap-2;
+  z-index: 50;
+  top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+  left: max(1rem, env(safe-area-inset-left, 0px));
+  right: max(1rem, env(safe-area-inset-right, 0px));
+}
+.floating-stats .stat-chip {
+  @apply min-w-0 flex-1;
+  backdrop-filter: blur(8px);
+}
+
+@media (min-width: 640px) {
+  .game-shell {
+    padding-top: 1.25rem;
+  }
+  .floating-stats {
+    left: auto;
+    right: max(1.5rem, calc((100vw - 80rem) / 2 + 1.5rem));
+  }
+  .floating-stats .stat-chip {
+    @apply min-w-32 flex-none;
+  }
+}
+
 .stat-chip {
   @apply relative flex min-w-32 items-center gap-3 border border-foreground/20 bg-card px-3 py-2 shadow-[3px_3px_0_#172019];
 }

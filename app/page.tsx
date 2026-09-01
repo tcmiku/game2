@@ -1040,7 +1040,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-5 text-foreground sm:px-6 lg:px-8">
+    <main className="game-shell min-h-screen bg-background px-4 pb-5 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <header className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
           <div>
@@ -1051,7 +1051,7 @@ export default function Home() {
               温室账单
             </h1>
           </div>
-          <div className="flex w-full gap-2 sm:w-auto">
+          <div className="floating-stats" aria-label="实时游戏状态">
             <div
               key={coinBurst.serial}
               className={`stat-chip coin-chip ${coinBurst.amount > 0 ? `coin-hit-${coinBurstTier}` : ''}`}
