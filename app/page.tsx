@@ -37,7 +37,7 @@ type Plant = {
   minHarvestMs: number;
 };
 
-type GameStatus = 'playing' | 'wave-clear' | 'shop' | 'failed' | 'complete';
+type GameStatus = 'playing' | 'shop' | 'failed' | 'complete';
 type HarvestMode = 'manual' | 'auto';
 type BossModifier =
   | { kind: 'coin-tax'; percentage: number }
@@ -66,7 +66,6 @@ type HarvestStats = {
   total: number;
   goldenProgress: number;
   fragments: number;
-  diamondProgress: number;
   diamondFragments: number;
   bigDogProgress: number;
   maodieProgress: number;
@@ -79,7 +78,6 @@ const SHOP_UNLOCK_STAGE = STAGES_PER_CHAPTER * 2;
 const MAX_RELIC_SLOTS = 4;
 const GOLDEN_FRAGMENT_HARVESTS = 100;
 const FUSION_UNLOCK_STAGE = 20;
-const DIAMOND_FRAGMENT_HARVESTS = 100;
 const DIAMOND_FRAGMENT_REQUIREMENT = 4;
 const DIFFICULTY_RAMP_START_STAGE = 10;
 const FINAL_STAGE_GOAL = 80_000;
@@ -190,7 +188,7 @@ const FUSIONS: Array<{
     id: 'goldenHarvester',
     name: '黄金收割机',
     materials: ['autoHarvester', 'goldenDrop'],
-    description: `保留两件遗物效果；黄金植物每收获 ${DIAMOND_FRAGMENT_HARVESTS} 次获得 1 枚钻石碎片，4 枚可升级一株满载后结算金币的钻石植物。`,
+    description: '保留两件遗物效果；黄金碎片满4枚且没有普通植物可转化时获得1枚钻石碎片，4枚可升级一株满载后结算金币的钻石植物。',
   },
   {
     id: 'santiago',
@@ -234,7 +232,6 @@ const EMPTY_HARVEST_STATS: HarvestStats = {
   total: 0,
   goldenProgress: 0,
   fragments: 0,
-  diamondProgress: 0,
   diamondFragments: 0,
   bigDogProgress: 0,
   maodieProgress: 0,
@@ -586,7 +583,6 @@ export default function Home() {
     const idSet = new Set(plantIds);
     let harvested = 0;
     const harvestedIds: number[] = [];
-    let goldenHarvests = 0;
     let grossIncome = 0;
     let criticalHits = 0;
 
@@ -604,9 +600,6 @@ export default function Home() {
 
       harvested += 1;
       harvestedIds.push(plant.id);
-      if (fusedRelics.goldenHarvester && plant.golden && !plant.diamond) {
-        goldenHarvests += 1;
-      }
       let plantIncome =
         plant.level *
         (plant.diamond ? 4 : plant.golden ? 2 : 1) *
@@ -669,17 +662,46 @@ export default function Home() {
     const events: string[] = [];
     let directBonus = 0;
 
-    if (fusedRelics.goldenHarvester && goldenHarvests > 0) {
-      nextStats.diamondProgress += goldenHarvests;
-      let earnedDiamondFragments = 0;
-      while (nextStats.diamondProgress >= DIAMOND_FRAGMENT_HARVESTS) {
-        nextStats.diamondProgress -= DIAMOND_FRAGMENT_HARVESTS;
-        nextStats.diamondFragments += 1;
-        earnedDiamondFragments += 1;
+    if (relicLevels.goldenDrop > 0) {
+      nextStats.goldenProgress += harvested;
+      while (nextStats.goldenProgress >= GOLDEN_FRAGMENT_HARVESTS) {
+        nextStats.goldenProgress -= GOLDEN_FRAGMENT_HARVESTS;
+        nextStats.fragments += 1;
       }
-      if (earnedDiamondFragments > 0) {
-        events.push(`钻石碎片 +${earnedDiamondFragments}`);
+      while (nextStats.fragments >= 4) {
+        const regularPlants = nextPlants.filter((plant) => !plant.golden);
+        if (regularPlants.length > 0) {
+          nextStats.fragments -= 4;
+          const chosen = regularPlants[randomIndex(regularPlants.length)];
+          nextPlants = nextPlants.map((plant) =>
+            plant.id === chosen.id
+              ? {
+                  ...plant,
+                  golden: true,
+                  diamond: false,
+                  growth: 100,
+                  ripeSince: now,
+                  minHarvestMs: shortenHarvestInterval(
+                    plant.minHarvestMs,
+                    fusedRelics.catDog,
+                  ),
+                }
+              : plant,
+          );
+          events.push('生成黄金植物 · 间隔 -0.2s');
+        } else if (fusedRelics.goldenHarvester) {
+          nextStats.fragments -= 4;
+          nextStats.diamondFragments += 1;
+          events.push('黄金植物已满 · 钻石碎片 +1');
+        } else {
+          nextStats.fragments -= 4;
+          directBonus += 250 * relicLevels.goldenDrop;
+          events.push(`黄金碎片兑换 +${250 * relicLevels.goldenDrop}`);
+        }
       }
+    }
+
+    if (fusedRelics.goldenHarvester) {
       while (nextStats.diamondFragments >= DIAMOND_FRAGMENT_REQUIREMENT) {
         const goldenPlants = nextPlants.filter(
           (plant) => plant.golden && !plant.diamond,
@@ -700,40 +722,6 @@ export default function Home() {
             : plant,
         );
         events.push('黄金植物升级为钻石植物 · 间隔 -0.2s');
-      }
-    }
-
-    if (relicLevels.goldenDrop > 0) {
-      nextStats.goldenProgress += harvested;
-      while (nextStats.goldenProgress >= GOLDEN_FRAGMENT_HARVESTS) {
-        nextStats.goldenProgress -= GOLDEN_FRAGMENT_HARVESTS;
-        nextStats.fragments += 1;
-      }
-      while (nextStats.fragments >= 4) {
-        nextStats.fragments -= 4;
-        const regularPlants = nextPlants.filter((plant) => !plant.golden);
-        if (regularPlants.length > 0) {
-          const chosen = regularPlants[randomIndex(regularPlants.length)];
-          nextPlants = nextPlants.map((plant) =>
-            plant.id === chosen.id
-              ? {
-                  ...plant,
-                  golden: true,
-                  diamond: false,
-                  growth: 100,
-                  ripeSince: now,
-                  minHarvestMs: shortenHarvestInterval(
-                    plant.minHarvestMs,
-                    fusedRelics.catDog,
-                  ),
-                }
-              : plant,
-          );
-          events.push('生成黄金植物 · 间隔 -0.2s');
-        } else {
-          directBonus += 250 * relicLevels.goldenDrop;
-          events.push(`黄金碎片兑换 +${250 * relicLevels.goldenDrop}`);
-        }
       }
     }
 
@@ -940,7 +928,7 @@ export default function Home() {
         setShopAdvancesStage(true);
         setStatus('shop');
       } else {
-        setStatus('wave-clear');
+        continueStage();
       }
     }
   }, [coins, fusedRelics, isBossStage, relicLevels, safeStage, stageData.goal, status, timeLeft]);
@@ -1336,8 +1324,8 @@ export default function Home() {
               )}
               {fusedRelics.goldenHarvester && (
                 <div className="floating-meter diamond-meter">
-                  <span><b>钻石碎片 {harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT}</b><small>{harvestStats.diamondProgress}/{DIAMOND_FRAGMENT_HARVESTS}</small></span>
-                  <progress value={harvestStats.diamondProgress} max={DIAMOND_FRAGMENT_HARVESTS} aria-label={`钻石碎片 ${harvestStats.diamondFragments} 枚，下一枚获取进度 ${harvestStats.diamondProgress}/${DIAMOND_FRAGMENT_HARVESTS}`} />
+                  <span><b>钻石碎片 {harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT}</b><small>黄金碎片 {harvestStats.fragments}/4</small></span>
+                  <progress value={harvestStats.fragments} max={4} aria-label={`钻石碎片 ${harvestStats.diamondFragments} 枚，黄金碎片替补进度 ${harvestStats.fragments}/4`} />
                 </div>
               )}
             </div>
@@ -1574,7 +1562,7 @@ export default function Home() {
                         <h4>{fusion.name}</h4>
                         <p>{fusion.description}</p>
                         {fusion.id === 'goldenHarvester' && fused && (
-                          <small>钻石碎片 {harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT} · 下一枚 {harvestStats.diamondProgress}/{DIAMOND_FRAGMENT_HARVESTS}</small>
+                          <small>钻石碎片 {harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT} · 黄金碎片 {harvestStats.fragments}/4</small>
                         )}
                         <Button onClick={() => fuseRelic(fusion.id)} disabled={!ready || fused} className="w-full">
                           {fused ? '融合完成' : ready ? '立即融合' : '需要两件 Lv.6 素材'}
@@ -1593,19 +1581,6 @@ export default function Home() {
                 <Button onClick={shopAdvancesStage ? continueStage : closeShop} size="lg">{shopAdvancesStage ? (safeStage >= TOTAL_STAGES ? '完成本轮' : `进入第 ${safeStage + 1} 小关`) : '关闭商店 · 继续本关'}</Button>
               </div>
             </footer>
-          </section>
-        </div>
-      )}
-
-      {status === 'wave-clear' && (
-        <div className="result-backdrop">
-          <section className="result-card" role="dialog" aria-modal="true" aria-labelledby="wave-title" aria-describedby="wave-description">
-            <div className="result-media"><BadgeCheck /></div>
-            <div>
-              <h2 id="wave-title" className="result-title">{safeStage % STAGES_PER_CHAPTER === 0 ? `第 ${bigChapter} 章完成` : `第 ${safeStage} 小关通过`}</h2>
-              <p id="wave-description" className="result-description">遗物商店已从开局开放，可在关卡进行中随时进入。</p>
-            </div>
-            <div className="result-footer"><Button onClick={continueStage}>进入第 {safeStage + 1} 小关</Button></div>
           </section>
         </div>
       )}
