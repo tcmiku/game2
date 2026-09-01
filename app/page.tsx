@@ -349,6 +349,7 @@ function relicCost(
   purchaseCount: number,
   upgradeCount: number,
 ) {
+  if (level === 0 && purchaseCount === 0) return 0;
   const relic = RELICS.find((item) => item.id === id)!;
   if (level === 0) {
     return Math.round(relic.baseCost * 8 * 1.7 ** purchaseCount);
@@ -442,13 +443,19 @@ export default function Home() {
   const harvestStatsRef = useRef(harvestStats);
   const [shopOffers, setShopOffers] = useState<RelicId[]>([]);
   const [shopRefreshes, setShopRefreshes] = useState(0);
+  const [shopAdvancesStage, setShopAdvancesStage] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [consoleCoins, setConsoleCoins] = useState('0');
   const [consoleStage, setConsoleStage] = useState('1');
   const [notice, setNotice] = useState('点击植物开始照料');
   const [coinBurst, setCoinBurst] = useState({ amount: 0, serial: 0 });
+  const [harvestEffect, setHarvestEffect] = useState({
+    ids: [] as number[],
+    serial: 0,
+  });
   const nextId = useRef(2);
   const coinBurstTimer = useRef<number | null>(null);
+  const harvestEffectTimer = useRef<number | null>(null);
 
   const safeStage = Math.min(Math.max(stage, 1), TOTAL_STAGES);
   const stageData = STAGES[safeStage - 1];
@@ -570,6 +577,16 @@ export default function Home() {
     }, 700);
   }
 
+  function showHarvestEffect(ids: number[]) {
+    if (harvestEffectTimer.current) {
+      window.clearTimeout(harvestEffectTimer.current);
+    }
+    setHarvestEffect((current) => ({ ids, serial: current.serial + 1 }));
+    harvestEffectTimer.current = window.setTimeout(() => {
+      setHarvestEffect((current) => ({ ...current, ids: [] }));
+    }, 850);
+  }
+
   function collectPlantIds(
     plantIds: number[],
     mode: HarvestMode,
@@ -582,6 +599,7 @@ export default function Home() {
     );
     const idSet = new Set(plantIds);
     let harvested = 0;
+    const harvestedIds: number[] = [];
     let goldenHarvests = 0;
     let grossIncome = 0;
     let criticalHits = 0;
@@ -599,6 +617,7 @@ export default function Home() {
       }
 
       harvested += 1;
+      harvestedIds.push(plant.id);
       if (fusedRelics.goldenHarvester && plant.golden && !plant.diamond) {
         goldenHarvests += 1;
       }
@@ -803,6 +822,7 @@ export default function Home() {
     commitHarvestStats(nextStats);
     setCoins((value) => value + finalIncome);
     showCoinGain(finalIncome);
+    showHarvestEffect(harvestedIds);
 
     const feedback = [
       `${mode === 'auto' ? '自动' : ''}收获 ${harvested} 株，金币 +${finalIncome}`,
@@ -928,9 +948,10 @@ export default function Home() {
     } else {
       if (isBossStage) setBossModifier(null);
       const isChapterEnd = safeStage % STAGES_PER_CHAPTER === 0;
-      if (isChapterEnd && safeStage >= SHOP_UNLOCK_STAGE) {
+      if (isChapterEnd) {
         setShopOffers(drawRelicOffers(relicLevels, fusedRelics));
         setShopRefreshes(0);
+        setShopAdvancesStage(true);
         setStatus('shop');
       } else {
         setStatus('wave-clear');
@@ -946,6 +967,9 @@ export default function Home() {
   useEffect(
     () => () => {
       if (coinBurstTimer.current) window.clearTimeout(coinBurstTimer.current);
+      if (harvestEffectTimer.current) {
+        window.clearTimeout(harvestEffectTimer.current);
+      }
     },
     [],
   );
@@ -953,7 +977,6 @@ export default function Home() {
   useEffect(() => {
     function handleUpgradeHotkey(event: KeyboardEvent) {
       if (
-        event.repeat ||
         event.isComposing ||
         event.ctrlKey ||
         event.metaKey ||
@@ -978,6 +1001,17 @@ export default function Home() {
         return;
       }
 
+      if (event.code === 'Space' || event.key === ' ') {
+        const selectedButton = document.querySelector<HTMLButtonElement>(
+          '.plant-card.is-selected',
+        );
+        if (!selectedButton || selectedButton.disabled) return;
+        event.preventDefault();
+        selectedButton.click();
+        return;
+      }
+
+      if (event.repeat) return;
       const hotkey = event.key.toLowerCase();
       if (!['q', 'w', 'e', 'r'].includes(hotkey)) return;
 
@@ -1123,6 +1157,12 @@ export default function Home() {
     if (level >= 6 || coins < cost) return;
     setCoins((value) => value - cost);
     setRelicLevels((current) => ({ ...current, [id]: level + 1 }));
+    const relic = RELICS.find((item) => item.id === id)!;
+    setNotice(
+      level === 0
+        ? `获得遗物：${relic.name}${cost === 0 ? '（首件免费）' : ''}`
+        : `${relic.name} 升至 Lv.${level + 1}`,
+    );
   }
 
   function fuseRelic(id: FusedRelicId) {
@@ -1145,6 +1185,21 @@ export default function Home() {
     setCoins((value) => value - refreshCost);
     setShopOffers(drawRelicOffers(relicLevels, fusedRelics));
     setShopRefreshes((value) => value + 1);
+  }
+
+  function openShop() {
+    if (status !== 'playing') return;
+    if (shopOffers.length === 0) {
+      setShopOffers(drawRelicOffers(relicLevels, fusedRelics));
+    }
+    setShopAdvancesStage(false);
+    setStatus('shop');
+  }
+
+  function closeShop() {
+    setShopAdvancesStage(false);
+    setStatus('playing');
+    setNotice('遗物商店已关闭，关卡继续');
   }
 
   function toggleConsole() {
@@ -1193,6 +1248,7 @@ export default function Home() {
     setTimeLeft(adjustedSeconds);
     setShopOffers([]);
     setShopRefreshes(0);
+    setShopAdvancesStage(false);
     setStatus('playing');
     setNotice(
       nextStageData.boss
@@ -1219,6 +1275,7 @@ export default function Home() {
     setStage(nextStage);
     setBossModifier(rolledModifier);
     setTimeLeft(adjustedSeconds);
+    setShopAdvancesStage(false);
     setStatus('playing');
     setNotice(
       nextStageData.boss
@@ -1242,6 +1299,7 @@ export default function Home() {
     setFusedRelics({ ...EMPTY_FUSED_RELICS });
     setShopOffers([]);
     setShopRefreshes(0);
+    setShopAdvancesStage(false);
     commitHarvestStats({ ...EMPTY_HARVEST_STATS });
     nextId.current = 2;
     if (coinBurstTimer.current) window.clearTimeout(coinBurstTimer.current);
@@ -1300,10 +1358,15 @@ export default function Home() {
           </div>
         </header>
 
-        <section className={`console-panel ${consoleOpen ? 'is-open' : ''}`} aria-label="游戏测试控制台">
-          <Button type="button" variant="outline" onClick={toggleConsole} aria-expanded={consoleOpen}>
-            <Terminal /> 测试控制台
-          </Button>
+        <section className={`console-panel ${consoleOpen ? 'is-open' : ''}`} aria-label="游戏快捷入口">
+          <div className="utility-actions">
+            <Button type="button" variant="outline" onClick={toggleConsole} aria-expanded={consoleOpen}>
+              <Terminal /> 测试控制台
+            </Button>
+            <Button type="button" onClick={openShop} disabled={status !== 'playing'}>
+              <Store /> 遗物商店 <span>{relicPurchaseCount === 0 ? '首件免费' : '已开放'}</span>
+            </Button>
+          </div>
           {consoleOpen && (
             <div className="console-controls">
               <form onSubmit={(event) => { event.preventDefault(); applyConsoleCoins(); }}>
@@ -1353,6 +1416,7 @@ export default function Home() {
                     disabled={disabled}
                     className={`plant-card ${ripe ? 'is-ripe' : ''} ${selected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''} ${plant.golden ? 'is-golden' : ''} ${plant.diamond ? 'is-diamond' : ''} ${plant.storedMultiplier > 1 ? 'is-stored' : ''} ${plant.storedMultiplier >= 4 ? 'stored-high' : ''} ${plant.storedMultiplier >= 8 ? 'stored-max' : ''} ${plant.storedMultiplier >= 16 ? 'stored-ultimate' : ''}`}
                     aria-label={`第 ${index + 1} 株植物，等级 ${plant.level}，成长 ${Math.round(plant.growth)}%，最小收获间隔 ${(plant.minHarvestMs / 1000).toFixed(1)} 秒`}
+                    aria-keyshortcuts={selected ? 'Space' : undefined}
                   >
                     <span className="plot-number">{String(index + 1).padStart(2, '0')}</span>
                     {plant.diamond ? <span className="diamond-mark"><Gem /> 钻石</span> : plant.golden && <span className="golden-mark"><Flower2 /> 黄金</span>}
@@ -1368,13 +1432,18 @@ export default function Home() {
                     </span>
                     <span className="growth-track"><i style={{ width: `${plant.growth}%` }} /></span>
                     <span className="growth-value"><span>{Math.round(plant.growth)}%</span><span>间隔 {(plant.minHarvestMs / 1000).toFixed(1)}s</span></span>
+                    {harvestEffect.ids.includes(plant.id) && (
+                      <span className="plant-coin-effect" key={`${plant.id}-${harvestEffect.serial}`} aria-hidden="true">
+                        <i>◎</i><i>◎</i><i>◎</i><b>金币</b>
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
 
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-              <p className="flex items-center gap-2 text-sm text-muted-foreground"><MousePointer2 className="size-4" /> 点击催生 +{clickPower}%；最短收获间隔为 {fusedRelics.catDog ? '0.1' : '0.3'} 秒。</p>
+              <p className="flex items-center gap-2 text-sm text-muted-foreground"><MousePointer2 className="size-4" /> 点击或按住空格催生选中植物 +{clickPower}%；最短收获间隔为 {fusedRelics.catDog ? '0.1' : '0.3'} 秒。</p>
               <div className="chapter-track" aria-label={`当前第 ${bigChapter} 章，共 6 章`}>
                 {Array.from({ length: TOTAL_CHAPTERS }, (_, index) => (
                   <span key={index} className={index + 1 <= bigChapter ? 'active' : ''}>{index + 1}</span>
@@ -1386,7 +1455,7 @@ export default function Home() {
           <aside className="upgrade-panel">
             <p className="eyebrow">工具台 / {safeStage <= SHOP_UNLOCK_STAGE ? '前期' : '中期'}</p>
             <h2 className="text-xl font-bold">把金币变成效率</h2>
-            <p className="mb-4 mt-1 text-xs leading-relaxed text-muted-foreground">投资会降低本关持有金币。遗物商店在第二章结尾解锁，且只在章末开放。</p>
+            <p className="mb-4 mt-1 text-xs leading-relaxed text-muted-foreground">投资会降低本关持有金币。遗物商店从开局开放，本局第一件遗物免费。</p>
 
             <section className="relic-slots" aria-labelledby="relic-slots-title">
               <div className="relic-slots-heading">
@@ -1455,7 +1524,7 @@ export default function Home() {
         <div className="shop-backdrop">
           <section className="shop-card" role="dialog" aria-modal="true" aria-labelledby="shop-title">
             <header className="shop-header">
-              <div><p className="eyebrow">第 {bigChapter} 大章完成 · 随机三选</p><h2 id="shop-title"><Store /> 中期遗物商店</h2></div>
+              <div><p className="eyebrow">{shopAdvancesStage ? `第 ${bigChapter} 大章完成` : `第 ${safeStage} 关进行中`} · 随机三选</p><h2 id="shop-title"><Store /> 遗物商店</h2></div>
               <div className="shop-balance"><Coins /><span><b>{coins}</b><small>可用金币</small></span></div>
             </header>
 
@@ -1535,7 +1604,7 @@ export default function Home() {
               <p>购入阶梯 {relicPurchaseCount} · 升级阶梯 {relicUpgradeCount}。每次购买或升级都会抬高同类后续价格。</p>
               <div className="flex gap-2">
                 <Button onClick={refreshShop} variant="outline" size="lg" disabled={coins < refreshCost}>刷新 · {refreshCost} ◎</Button>
-                <Button onClick={continueStage} size="lg">{safeStage >= TOTAL_STAGES ? '完成本轮' : `进入第 ${safeStage + 1} 小关`}</Button>
+                <Button onClick={shopAdvancesStage ? continueStage : closeShop} size="lg">{shopAdvancesStage ? (safeStage >= TOTAL_STAGES ? '完成本轮' : `进入第 ${safeStage + 1} 小关`) : '关闭商店 · 继续本关'}</Button>
               </div>
             </footer>
           </section>
@@ -1548,7 +1617,7 @@ export default function Home() {
             <div className="result-media"><BadgeCheck /></div>
             <div>
               <h2 id="wave-title" className="result-title">{safeStage % STAGES_PER_CHAPTER === 0 ? `第 ${bigChapter} 章完成` : `第 ${safeStage} 小关通过`}</h2>
-              <p id="wave-description" className="result-description">{safeStage < SHOP_UNLOCK_STAGE ? `商店将在第 ${SHOP_UNLOCK_STAGE} 关结束后解锁。` : '本关不是章末，无法进入商店。遗物商店只在每五关结束时开放。'}</p>
+              <p id="wave-description" className="result-description">遗物商店已从开局开放，可在关卡进行中随时进入。</p>
             </div>
             <div className="result-footer"><Button onClick={continueStage}>进入第 {safeStage + 1} 小关</Button></div>
           </section>

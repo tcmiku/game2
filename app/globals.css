@@ -169,8 +169,17 @@ body {
 .console-panel {
   @apply mb-4 flex flex-col items-start gap-3;
 }
-.console-panel > button {
+.utility-actions {
+  @apply flex flex-wrap gap-2;
+}
+.utility-actions > button {
   @apply border-foreground/30 bg-card shadow-[3px_3px_0_#172019];
+}
+.utility-actions > button:last-child {
+  @apply bg-primary text-primary-foreground;
+}
+.utility-actions > button span {
+  @apply border border-current/25 px-1.5 py-0.5 font-mono text-[9px];
 }
 .console-controls {
   @apply grid w-full gap-3 border border-foreground/25 bg-[#20271f] p-3 text-background shadow-[4px_4px_0_#172019] md:grid-cols-[1fr_1fr_auto] md:items-end;
@@ -326,6 +335,25 @@ body {
 .plant-card svg {
   @apply mb-3 size-12 text-primary transition-transform duration-300;
   stroke-width: 1.65;
+}
+.plant-coin-effect {
+  @apply pointer-events-none absolute inset-0 z-20;
+}
+.plant-coin-effect i {
+  @apply absolute left-1/2 top-1/2 grid size-7 place-items-center rounded-full border-2 border-[#9f6500] bg-[#f6c94d] font-mono text-sm font-black not-italic text-[#714300] shadow-[2px_2px_0_#7a4a00];
+  animation: plant-coin-pop 780ms cubic-bezier(0.15, 0.8, 0.25, 1) both;
+}
+.plant-coin-effect i:nth-child(2) {
+  animation-name: plant-coin-pop-left;
+  animation-delay: 45ms;
+}
+.plant-coin-effect i:nth-child(3) {
+  animation-name: plant-coin-pop-right;
+  animation-delay: 90ms;
+}
+.plant-coin-effect b {
+  @apply absolute left-1/2 top-1/2 -translate-x-1/2 bg-[#7a4a00] px-2 py-0.5 font-mono text-[10px] text-[#fff3b0];
+  animation: plant-coin-label 720ms ease-out both;
 }
 .plot-number {
   @apply absolute left-2 top-2 font-mono text-[10px] text-muted-foreground;
@@ -592,6 +620,26 @@ body {
   50% {
     filter: brightness(1.06);
   }
+}
+@keyframes plant-coin-pop {
+  0% { opacity: 0; transform: translate(-50%, -20%) scale(0.45) rotate(-12deg); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -155%) scale(1.05) rotate(10deg); }
+}
+@keyframes plant-coin-pop-left {
+  0% { opacity: 0; transform: translate(-50%, -10%) scale(0.4) rotate(8deg); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-155%, -125%) scale(0.9) rotate(-22deg); }
+}
+@keyframes plant-coin-pop-right {
+  0% { opacity: 0; transform: translate(-50%, -10%) scale(0.4) rotate(-8deg); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translate(55%, -115%) scale(0.95) rotate(24deg); }
+}
+@keyframes plant-coin-label {
+  0% { opacity: 0; transform: translate(-50%, 40%); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -250%); }
 }
 @keyframes stored-pulse {
   to {
