@@ -76,6 +76,25 @@ const MAX_RELIC_SLOTS = 4;
 const GOLDEN_FRAGMENT_HARVESTS = 100;
 const FUSION_UNLOCK_STAGE = 20;
 const DIAMOND_FRAGMENT_REQUIREMENT = 4;
+const DIFFICULTY_RAMP_START_STAGE = 10;
+const FINAL_STAGE_GOAL = 80_000;
+
+function getStageGoal(stage: number) {
+  const baseGoal = (targetStage: number) =>
+    Math.round(8 + 5.5 * (targetStage - 1) ** 2);
+
+  if (stage < DIFFICULTY_RAMP_START_STAGE) return baseGoal(stage);
+  if (stage === TOTAL_STAGES) return FINAL_STAGE_GOAL;
+
+  const anchorStage = DIFFICULTY_RAMP_START_STAGE - 1;
+  const anchorGoal = baseGoal(anchorStage);
+  const rampProgress =
+    (stage - anchorStage) / (TOTAL_STAGES - anchorStage);
+
+  return Math.round(
+    anchorGoal * (FINAL_STAGE_GOAL / anchorGoal) ** rampProgress,
+  );
+}
 
 const STAGES = Array.from({ length: TOTAL_STAGES }, (_, index) => {
   const stage = index + 1;
@@ -84,7 +103,7 @@ const STAGES = Array.from({ length: TOTAL_STAGES }, (_, index) => {
   return {
     stage,
     chapter,
-    goal: Math.round(8 + 5.5 * index ** 2),
+    goal: getStageGoal(stage),
     seconds: isBoss ? 30 : stage <= SHOP_UNLOCK_STAGE ? 24 : 22,
     name: isBoss ? `第 ${chapter} 章守关者` : stage <= SHOP_UNLOCK_STAGE ? '点击培育' : '遗物经营',
     boss: isBoss,
