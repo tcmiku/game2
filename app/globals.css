@@ -169,17 +169,8 @@ body {
 .console-panel {
   @apply mb-4 flex flex-col items-start gap-3;
 }
-.utility-actions {
-  @apply flex flex-wrap gap-2;
-}
-.utility-actions > button {
+.console-panel > button {
   @apply border-foreground/30 bg-card shadow-[3px_3px_0_#172019];
-}
-.utility-actions > button:last-child {
-  @apply bg-primary text-primary-foreground;
-}
-.utility-actions > button span {
-  @apply border border-current/25 px-1.5 py-0.5 font-mono text-[9px];
 }
 .console-controls {
   @apply grid w-full gap-3 border border-foreground/25 bg-[#20271f] p-3 text-background shadow-[4px_4px_0_#172019] md:grid-cols-[1fr_1fr_auto] md:items-end;
