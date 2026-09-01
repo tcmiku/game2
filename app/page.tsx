@@ -65,6 +65,7 @@ type HarvestStats = {
   total: number;
   goldenProgress: number;
   fragments: number;
+  diamondProgress: number;
   diamondFragments: number;
   bigDogProgress: number;
   maodieProgress: number;
@@ -77,24 +78,39 @@ const SHOP_UNLOCK_STAGE = STAGES_PER_CHAPTER * 2;
 const MAX_RELIC_SLOTS = 4;
 const GOLDEN_FRAGMENT_HARVESTS = 100;
 const FUSION_UNLOCK_STAGE = 20;
+const DIAMOND_FRAGMENT_HARVESTS = 100;
 const DIAMOND_FRAGMENT_REQUIREMENT = 4;
 const DIFFICULTY_RAMP_START_STAGE = 10;
-const FINAL_STAGE_GOAL = 80_000;
+const MID_GAME_TARGET_STAGE = 20;
+const MID_GAME_STAGE_GOAL = 40_000;
+const FINAL_STAGE_GOAL = 320_000;
 
 function getStageGoal(stage: number) {
   const baseGoal = (targetStage: number) =>
     Math.round(8 + 5.5 * (targetStage - 1) ** 2);
 
   if (stage < DIFFICULTY_RAMP_START_STAGE) return baseGoal(stage);
+  if (stage === MID_GAME_TARGET_STAGE) return MID_GAME_STAGE_GOAL;
   if (stage === TOTAL_STAGES) return FINAL_STAGE_GOAL;
 
   const anchorStage = DIFFICULTY_RAMP_START_STAGE - 1;
   const anchorGoal = baseGoal(anchorStage);
-  const rampProgress =
-    (stage - anchorStage) / (TOTAL_STAGES - anchorStage);
+  if (stage < MID_GAME_TARGET_STAGE) {
+    const rampProgress =
+      (stage - anchorStage) / (MID_GAME_TARGET_STAGE - anchorStage);
+
+    return Math.round(
+      anchorGoal * (MID_GAME_STAGE_GOAL / anchorGoal) ** rampProgress,
+    );
+  }
+
+  const finalRampProgress =
+    (stage - MID_GAME_TARGET_STAGE) /
+    (TOTAL_STAGES - MID_GAME_TARGET_STAGE);
 
   return Math.round(
-    anchorGoal * (FINAL_STAGE_GOAL / anchorGoal) ** rampProgress,
+    MID_GAME_STAGE_GOAL *
+      (FINAL_STAGE_GOAL / MID_GAME_STAGE_GOAL) ** finalRampProgress,
   );
 }
 
@@ -187,7 +203,7 @@ const FUSIONS: Array<{
     id: 'goldenHarvester',
     name: '黄金收割机',
     materials: ['autoHarvester', 'goldenDrop'],
-    description: '保留两件遗物效果；收割黄金植物产生钻石碎片，4枚可升级一株钻石植物，并再缩短 0.2 秒最小收获间隔。',
+    description: `保留两件遗物效果；黄金植物每收获 ${DIAMOND_FRAGMENT_HARVESTS} 次获得 1 枚钻石碎片，4 枚可升级一株满载后结算金币的钻石植物。`,
   },
   {
     id: 'santiago',
@@ -231,6 +247,7 @@ const EMPTY_HARVEST_STATS: HarvestStats = {
   total: 0,
   goldenProgress: 0,
   fragments: 0,
+  diamondProgress: 0,
   diamondFragments: 0,
   bigDogProgress: 0,
   maodieProgress: 0,
@@ -342,6 +359,11 @@ function fertilizerCap(level: number) {
   if (level >= 6) return 8;
   if (level >= 3) return 4;
   return 2;
+}
+
+function storageCapacity(fertilizerLevel: number, hasSantiago: boolean) {
+  if (fertilizerLevel <= 0) return 1;
+  return hasSantiago ? 16 : fertilizerCap(fertilizerLevel);
 }
 
 function occupiedRelicSlots(levels: RelicLevels, fused: FusedRelics) {
@@ -500,6 +522,10 @@ export default function Home() {
     sourcePlants = plantsRef.current,
   ) {
     const now = Date.now();
+    const currentStorageCapacity = storageCapacity(
+      relicLevels.fertilizer,
+      fusedRelics.santiago,
+    );
     const idSet = new Set(plantIds);
     let harvested = 0;
     let goldenHarvests = 0;
@@ -511,6 +537,8 @@ export default function Home() {
         !idSet.has(plant.id) ||
         isPlantDisabled(plant.id) ||
         plant.growth < 100 ||
+        (plant.diamond &&
+          plant.storedMultiplier < currentStorageCapacity) ||
         now - plant.lastHarvestAt < plant.minHarvestMs
       ) {
         return plant;
@@ -582,7 +610,16 @@ export default function Home() {
     let directBonus = 0;
 
     if (fusedRelics.goldenHarvester && goldenHarvests > 0) {
-      nextStats.diamondFragments += goldenHarvests;
+      nextStats.diamondProgress += goldenHarvests;
+      let earnedDiamondFragments = 0;
+      while (nextStats.diamondProgress >= DIAMOND_FRAGMENT_HARVESTS) {
+        nextStats.diamondProgress -= DIAMOND_FRAGMENT_HARVESTS;
+        nextStats.diamondFragments += 1;
+        earnedDiamondFragments += 1;
+      }
+      if (earnedDiamondFragments > 0) {
+        events.push(`钻石碎片 +${earnedDiamondFragments}`);
+      }
       while (nextStats.diamondFragments >= DIAMOND_FRAGMENT_REQUIREMENT) {
         const goldenPlants = nextPlants.filter(
           (plant) => plant.golden && !plant.diamond,
@@ -747,6 +784,10 @@ export default function Home() {
         2500,
         5500 - relicLevels.fertilizer * 500,
       );
+      const currentStorageCapacity = storageCapacity(
+        relicLevels.fertilizer,
+        fusedRelics.santiago,
+      );
 
       const grownPlants = plantsRef.current.map((plant) => {
         if (isPlantDisabled(plant.id)) return plant;
@@ -774,9 +815,7 @@ export default function Home() {
         const storedMultiplier =
           storageSteps > 0
             ? Math.min(
-                fusedRelics.santiago
-                  ? 16
-                  : fertilizerCap(relicLevels.fertilizer),
+                currentStorageCapacity,
                 2 ** storageSteps,
               )
             : plant.storedMultiplier;
@@ -796,8 +835,10 @@ export default function Home() {
               !isPlantDisabled(plant.id) &&
               plant.growth >= 100 &&
               now - plant.lastHarvestAt >= plant.minHarvestMs &&
-              (relicLevels.autoHarvester > 0 ||
-                plant.storedMultiplier >= 16),
+              (plant.diamond
+                ? plant.storedMultiplier >= currentStorageCapacity
+                : relicLevels.autoHarvester > 0 ||
+                  plant.storedMultiplier >= 16),
           )
           .map((plant) => plant.id);
         if (readyIds.length > 0) {
@@ -928,6 +969,19 @@ export default function Home() {
     commitPlants(nextPlants);
     const collected = collectPlantIds(readyIds, 'manual', nextPlants);
     if (readyIds.length > 0 && collected === 0) {
+      const currentStorageCapacity = storageCapacity(
+        relicLevels.fertilizer,
+        fusedRelics.santiago,
+      );
+      if (
+        target.diamond &&
+        target.storedMultiplier < currentStorageCapacity
+      ) {
+        setNotice(
+          `钻石植物尚未满载：×${target.storedMultiplier}/×${currentStorageCapacity}`,
+        );
+        return;
+      }
       const remaining = Math.max(
         0,
         target.minHarvestMs - (Date.now() - target.lastHarvestAt),
@@ -1167,8 +1221,8 @@ export default function Home() {
               )}
               {fusedRelics.goldenHarvester && (
                 <div className="floating-meter diamond-meter">
-                  <span><b>钻石碎片</b><small>{harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT}</small></span>
-                  <progress value={harvestStats.diamondFragments} max={DIAMOND_FRAGMENT_REQUIREMENT} aria-label={`钻石碎片获取进度 ${harvestStats.diamondFragments}/${DIAMOND_FRAGMENT_REQUIREMENT}`} />
+                  <span><b>钻石碎片 {harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT}</b><small>{harvestStats.diamondProgress}/{DIAMOND_FRAGMENT_HARVESTS}</small></span>
+                  <progress value={harvestStats.diamondProgress} max={DIAMOND_FRAGMENT_HARVESTS} aria-label={`钻石碎片 ${harvestStats.diamondFragments} 枚，下一枚获取进度 ${harvestStats.diamondProgress}/${DIAMOND_FRAGMENT_HARVESTS}`} />
                 </div>
               )}
             </div>
@@ -1362,7 +1416,7 @@ export default function Home() {
                         <h4>{fusion.name}</h4>
                         <p>{fusion.description}</p>
                         {fusion.id === 'goldenHarvester' && fused && (
-                          <small>钻石碎片 {harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT}</small>
+                          <small>钻石碎片 {harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT} · 下一枚 {harvestStats.diamondProgress}/{DIAMOND_FRAGMENT_HARVESTS}</small>
                         )}
                         <Button onClick={() => fuseRelic(fusion.id)} disabled={!ready || fused} className="w-full">
                           {fused ? '融合完成' : ready ? '立即融合' : '需要两件 Lv.6 素材'}
