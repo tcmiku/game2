@@ -82,36 +82,22 @@ const FUSION_UNLOCK_STAGE = 20;
 const DIAMOND_FRAGMENT_HARVESTS = 100;
 const DIAMOND_FRAGMENT_REQUIREMENT = 4;
 const DIFFICULTY_RAMP_START_STAGE = 10;
-const MID_GAME_TARGET_STAGE = 20;
-const MID_GAME_STAGE_GOAL = 40_000;
-const FINAL_STAGE_GOAL = 320_000;
+const FINAL_STAGE_GOAL = 80_000;
 
 function getStageGoal(stage: number) {
   const baseGoal = (targetStage: number) =>
     Math.round(8 + 5.5 * (targetStage - 1) ** 2);
 
   if (stage < DIFFICULTY_RAMP_START_STAGE) return baseGoal(stage);
-  if (stage === MID_GAME_TARGET_STAGE) return MID_GAME_STAGE_GOAL;
   if (stage === TOTAL_STAGES) return FINAL_STAGE_GOAL;
 
   const anchorStage = DIFFICULTY_RAMP_START_STAGE - 1;
   const anchorGoal = baseGoal(anchorStage);
-  if (stage < MID_GAME_TARGET_STAGE) {
-    const rampProgress =
-      (stage - anchorStage) / (MID_GAME_TARGET_STAGE - anchorStage);
-
-    return Math.round(
-      anchorGoal * (MID_GAME_STAGE_GOAL / anchorGoal) ** rampProgress,
-    );
-  }
-
-  const finalRampProgress =
-    (stage - MID_GAME_TARGET_STAGE) /
-    (TOTAL_STAGES - MID_GAME_TARGET_STAGE);
+  const rampProgress =
+    (stage - anchorStage) / (TOTAL_STAGES - anchorStage);
 
   return Math.round(
-    MID_GAME_STAGE_GOAL *
-      (FINAL_STAGE_GOAL / MID_GAME_STAGE_GOAL) ** finalRampProgress,
+    anchorGoal * (FINAL_STAGE_GOAL / anchorGoal) ** rampProgress,
   );
 }
 
@@ -349,6 +335,7 @@ function relicCost(
   purchaseCount: number,
   upgradeCount: number,
 ) {
+  if (level === 0 && purchaseCount === 0) return 0;
   const relic = RELICS.find((item) => item.id === id)!;
   if (level === 0) {
     return Math.round(relic.baseCost * 8 * 1.7 ** purchaseCount);
@@ -442,6 +429,7 @@ export default function Home() {
   const harvestStatsRef = useRef(harvestStats);
   const [shopOffers, setShopOffers] = useState<RelicId[]>([]);
   const [shopRefreshes, setShopRefreshes] = useState(0);
+  const [shopAdvancesStage, setShopAdvancesStage] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [consoleCoins, setConsoleCoins] = useState('0');
   const [consoleStage, setConsoleStage] = useState('1');
@@ -946,9 +934,10 @@ export default function Home() {
     } else {
       if (isBossStage) setBossModifier(null);
       const isChapterEnd = safeStage % STAGES_PER_CHAPTER === 0;
-      if (isChapterEnd && safeStage >= SHOP_UNLOCK_STAGE) {
+      if (isChapterEnd) {
         setShopOffers(drawRelicOffers(relicLevels, fusedRelics));
         setShopRefreshes(0);
+        setShopAdvancesStage(true);
         setStatus('shop');
       } else {
         setStatus('wave-clear');
@@ -1157,7 +1146,7 @@ export default function Home() {
     const relic = RELICS.find((item) => item.id === id)!;
     setNotice(
       level === 0
-        ? `获得遗物：${relic.name}`
+        ? `获得遗物：${relic.name}${cost === 0 ? '（首件免费）' : ''}`
         : `${relic.name} 升至 Lv.${level + 1}`,
     );
   }
@@ -1182,6 +1171,21 @@ export default function Home() {
     setCoins((value) => value - refreshCost);
     setShopOffers(drawRelicOffers(relicLevels, fusedRelics));
     setShopRefreshes((value) => value + 1);
+  }
+
+  function openShop() {
+    if (status !== 'playing') return;
+    if (shopOffers.length === 0) {
+      setShopOffers(drawRelicOffers(relicLevels, fusedRelics));
+    }
+    setShopAdvancesStage(false);
+    setStatus('shop');
+  }
+
+  function closeShop() {
+    setShopAdvancesStage(false);
+    setStatus('playing');
+    setNotice('遗物商店已关闭，关卡继续');
   }
 
   function toggleConsole() {
@@ -1230,6 +1234,7 @@ export default function Home() {
     setTimeLeft(adjustedSeconds);
     setShopOffers([]);
     setShopRefreshes(0);
+    setShopAdvancesStage(false);
     setStatus('playing');
     setNotice(
       nextStageData.boss
@@ -1256,6 +1261,7 @@ export default function Home() {
     setStage(nextStage);
     setBossModifier(rolledModifier);
     setTimeLeft(adjustedSeconds);
+    setShopAdvancesStage(false);
     setStatus('playing');
     setNotice(
       nextStageData.boss
@@ -1279,6 +1285,7 @@ export default function Home() {
     setFusedRelics({ ...EMPTY_FUSED_RELICS });
     setShopOffers([]);
     setShopRefreshes(0);
+    setShopAdvancesStage(false);
     commitHarvestStats({ ...EMPTY_HARVEST_STATS });
     nextId.current = 2;
     if (coinBurstTimer.current) window.clearTimeout(coinBurstTimer.current);
@@ -1337,10 +1344,15 @@ export default function Home() {
           </div>
         </header>
 
-        <section className={`console-panel ${consoleOpen ? 'is-open' : ''}`} aria-label="游戏测试控制台">
-          <Button type="button" variant="outline" onClick={toggleConsole} aria-expanded={consoleOpen}>
-            <Terminal /> 测试控制台
-          </Button>
+        <section className={`console-panel ${consoleOpen ? 'is-open' : ''}`} aria-label="游戏快捷入口">
+          <div className="utility-actions">
+            <Button type="button" variant="outline" onClick={toggleConsole} aria-expanded={consoleOpen}>
+              <Terminal /> 测试控制台
+            </Button>
+            <Button type="button" onClick={openShop} disabled={status !== 'playing'}>
+              <Store /> 遗物商店 <span>{relicPurchaseCount === 0 ? '首件免费' : '已开放'}</span>
+            </Button>
+          </div>
           {consoleOpen && (
             <div className="console-controls">
               <form onSubmit={(event) => { event.preventDefault(); applyConsoleCoins(); }}>
@@ -1429,7 +1441,7 @@ export default function Home() {
           <aside className="upgrade-panel">
             <p className="eyebrow">工具台 / {safeStage <= SHOP_UNLOCK_STAGE ? '前期' : '中期'}</p>
             <h2 className="text-xl font-bold">把金币变成效率</h2>
-            <p className="mb-4 mt-1 text-xs leading-relaxed text-muted-foreground">投资会降低本关持有金币。遗物商店在第二章结尾解锁，且只在章末开放。</p>
+            <p className="mb-4 mt-1 text-xs leading-relaxed text-muted-foreground">投资会降低本关持有金币。遗物商店从开局开放，本局第一件遗物免费。</p>
 
             <section className="relic-slots" aria-labelledby="relic-slots-title">
               <div className="relic-slots-heading">
@@ -1498,7 +1510,7 @@ export default function Home() {
         <div className="shop-backdrop">
           <section className="shop-card" role="dialog" aria-modal="true" aria-labelledby="shop-title">
             <header className="shop-header">
-              <div><p className="eyebrow">第 {bigChapter} 大章完成 · 随机三选</p><h2 id="shop-title"><Store /> 中期遗物商店</h2></div>
+              <div><p className="eyebrow">{shopAdvancesStage ? `第 ${bigChapter} 大章完成` : `第 ${safeStage} 关进行中`} · 随机三选</p><h2 id="shop-title"><Store /> 遗物商店</h2></div>
               <div className="shop-balance"><Coins /><span><b>{coins}</b><small>可用金币</small></span></div>
             </header>
 
@@ -1578,7 +1590,7 @@ export default function Home() {
               <p>购入阶梯 {relicPurchaseCount} · 升级阶梯 {relicUpgradeCount}。每次购买或升级都会抬高同类后续价格。</p>
               <div className="flex gap-2">
                 <Button onClick={refreshShop} variant="outline" size="lg" disabled={coins < refreshCost}>刷新 · {refreshCost} ◎</Button>
-                <Button onClick={continueStage} size="lg">{safeStage >= TOTAL_STAGES ? '完成本轮' : `进入第 ${safeStage + 1} 小关`}</Button>
+                <Button onClick={shopAdvancesStage ? continueStage : closeShop} size="lg">{shopAdvancesStage ? (safeStage >= TOTAL_STAGES ? '完成本轮' : `进入第 ${safeStage + 1} 小关`) : '关闭商店 · 继续本关'}</Button>
               </div>
             </footer>
           </section>
@@ -1591,7 +1603,7 @@ export default function Home() {
             <div className="result-media"><BadgeCheck /></div>
             <div>
               <h2 id="wave-title" className="result-title">{safeStage % STAGES_PER_CHAPTER === 0 ? `第 ${bigChapter} 章完成` : `第 ${safeStage} 小关通过`}</h2>
-              <p id="wave-description" className="result-description">{safeStage < SHOP_UNLOCK_STAGE ? `商店将在第 ${SHOP_UNLOCK_STAGE} 关结束后解锁。` : '本关不是章末，无法进入商店。遗物商店只在每五关结束时开放。'}</p>
+              <p id="wave-description" className="result-description">遗物商店已从开局开放，可在关卡进行中随时进入。</p>
             </div>
             <div className="result-footer"><Button onClick={continueStage}>进入第 {safeStage + 1} 小关</Button></div>
           </section>
