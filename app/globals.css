@@ -345,6 +345,68 @@ body {
 .upgrade-panel {
   @apply self-start;
 }
+.relic-slots {
+  @apply mb-4 border border-foreground/15 bg-muted/50 p-3;
+}
+.relic-slots-heading {
+  @apply mb-2 flex items-center justify-between;
+}
+.relic-slots-heading h3 {
+  @apply flex items-center gap-1.5 text-xs font-bold;
+}
+.relic-slots-heading h3 svg {
+  @apply size-3.5 text-primary;
+}
+.relic-slots-heading > span {
+  @apply font-mono text-[10px] text-muted-foreground;
+}
+.relic-slot-grid {
+  @apply grid grid-cols-4 gap-2;
+}
+.relic-slot {
+  @apply relative flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 border text-center;
+}
+.relic-slot.is-empty {
+  @apply border-dashed border-foreground/20 bg-background/35 font-mono text-[9px] text-muted-foreground;
+}
+.relic-slot.is-filled {
+  @apply cursor-help border-primary/40 bg-secondary px-1 text-primary transition hover:-translate-y-0.5 hover:border-primary hover:shadow-[2px_2px_0_#286243];
+}
+.relic-slot.is-fused {
+  @apply border-[#b37812] bg-[#f6dfa3] text-[#8a5900] shadow-[inset_0_0_0_1px_#e4b441];
+}
+.relic-slot > svg {
+  @apply size-4 shrink-0;
+}
+.relic-slot-name {
+  @apply w-full truncate text-[10px] font-bold;
+}
+.relic-tooltip {
+  @apply pointer-events-none absolute bottom-[calc(100%+0.5rem)] z-50 hidden w-60 border border-foreground/30 bg-card p-3 text-left text-foreground shadow-[4px_4px_0_#172019];
+}
+.relic-slot:nth-child(-n+2) .relic-tooltip {
+  @apply left-0;
+}
+.relic-slot:nth-child(n+3) .relic-tooltip {
+  @apply right-0;
+}
+.relic-slot:hover .relic-tooltip,
+.relic-slot:focus .relic-tooltip,
+.relic-slot:focus-within .relic-tooltip {
+  @apply block;
+}
+.relic-tooltip b {
+  @apply block text-sm;
+}
+.relic-tooltip em {
+  @apply mt-0.5 block font-mono text-[10px] not-italic text-primary;
+}
+.relic-tooltip p {
+  @apply mt-2 text-[11px] leading-relaxed text-muted-foreground;
+}
+.relic-tooltip span {
+  @apply mt-2 block border-t border-foreground/15 pt-2 text-[11px] font-semibold leading-relaxed;
+}
 .upgrade-row {
   @apply flex items-center gap-3 border-t border-foreground/15 py-4 first-of-type:border-t-0;
 }

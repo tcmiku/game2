@@ -31,6 +31,7 @@ type Plant = {
   golden: boolean;
   diamond: boolean;
   storedMultiplier: number;
+  fullSince: number | null;
   ripeSince: number | null;
   lastHarvestAt: number;
   minHarvestMs: number;
@@ -209,7 +210,7 @@ const FUSIONS: Array<{
     id: 'santiago',
     name: '圣地亚哥',
     materials: ['fertilizer', 'midasHand'],
-    description: '跳过生长阶段；蓄积新增16倍阶段，达到上限时自动收获。',
+    description: '跳过生长阶段；蓄积新增16倍阶段，达到 ×16 后延迟1秒自动收获。',
   },
   {
     id: 'megaCrit',
@@ -257,6 +258,7 @@ const MAX_PLANTS = 18;
 const MIN_HARVEST_MS = 300;
 const FUSED_MIN_HARVEST_MS = 100;
 const SPECIAL_PLANT_INTERVAL_REDUCTION_MS = 200;
+const SANTIAGO_HARVEST_DELAY_MS = 1000;
 
 function shortenHarvestInterval(minHarvestMs: number, hasCatDog: boolean) {
   return Math.max(
@@ -274,6 +276,7 @@ function makeInitialPlants(): Plant[] {
       golden: false,
       diamond: false,
       storedMultiplier: 1,
+      fullSince: null,
       ripeSince: null,
       lastHarvestAt: 0,
       minHarvestMs: 1000,
@@ -482,6 +485,52 @@ export default function Home() {
       : coinBurst.amount >= 4
         ? 'medium'
         : 'small';
+  const equippedRelics = useMemo(() => {
+    const shownFusions = new Set<FusedRelicId>();
+    const slots: Array<{
+      key: string;
+      name: string;
+      level: string;
+      description: string;
+      effect: string;
+      fused: boolean;
+    }> = [];
+
+    for (const relic of RELICS) {
+      if (relicLevels[relic.id] <= 0) continue;
+      const fusion = FUSIONS.find(
+        (item) =>
+          fusedRelics[item.id] && item.materials.includes(relic.id),
+      );
+      if (fusion) {
+        if (shownFusions.has(fusion.id)) continue;
+        shownFusions.add(fusion.id);
+        slots.push({
+          key: fusion.id,
+          name: fusion.name,
+          level: '高级遗物',
+          description: fusion.description,
+          effect: `融合素材：${fusion.materials
+            .map((id) => {
+              const material = RELICS.find((item) => item.id === id)!;
+              return `${material.name} Lv.${relicLevels[id]}`;
+            })
+            .join(' + ')}`,
+          fused: true,
+        });
+        continue;
+      }
+      slots.push({
+        key: relic.id,
+        name: relic.name,
+        level: `Lv.${relicLevels[relic.id]}`,
+        description: relic.description,
+        effect: relicEffect(relic.id, relicLevels[relic.id]),
+        fused: false,
+      });
+    }
+    return slots.slice(0, MAX_RELIC_SLOTS);
+  }, [fusedRelics, relicLevels]);
 
   const rowWidth = 3;
   const positions = useMemo(
@@ -602,6 +651,7 @@ export default function Home() {
         ...plant,
         growth: plant.golden || fusedRelics.santiago ? 100 : 0,
         storedMultiplier: 1,
+        fullSince: null,
         ripeSince: plant.golden || fusedRelics.santiago ? now : null,
         lastHarvestAt: now,
       };
@@ -824,27 +874,42 @@ export default function Home() {
                 2 ** storageSteps,
               )
             : plant.storedMultiplier;
+        const fullSince =
+          fusedRelics.santiago && storedMultiplier >= 16
+            ? (plant.fullSince ?? now)
+            : null;
         return {
           ...plant,
           growth: nextGrowth,
           ripeSince,
           storedMultiplier,
+          fullSince,
         };
       });
 
       plantsRef.current = grownPlants;
       if (relicLevels.autoHarvester > 0 || fusedRelics.santiago) {
         const readyIds = grownPlants
-          .filter(
-            (plant) =>
-              !isPlantDisabled(plant.id) &&
-              plant.growth >= 100 &&
-              now - plant.lastHarvestAt >= plant.minHarvestMs &&
-              (plant.diamond
-                ? plant.storedMultiplier >= currentStorageCapacity
-                : relicLevels.autoHarvester > 0 ||
-                  plant.storedMultiplier >= 16),
-          )
+          .filter((plant) => {
+            if (
+              isPlantDisabled(plant.id) ||
+              plant.growth < 100 ||
+              now - plant.lastHarvestAt < plant.minHarvestMs
+            ) {
+              return false;
+            }
+            if (fusedRelics.santiago) {
+              return (
+                plant.storedMultiplier >= 16 &&
+                plant.fullSince !== null &&
+                now - plant.fullSince >= SANTIAGO_HARVEST_DELAY_MS
+              );
+            }
+            if (plant.diamond) {
+              return plant.storedMultiplier >= currentStorageCapacity;
+            }
+            return relicLevels.autoHarvester > 0;
+          })
           .map((plant) => plant.id);
         if (readyIds.length > 0) {
           collectPlantIds(readyIds, 'auto', grownPlants);
@@ -1026,6 +1091,7 @@ export default function Home() {
       golden: false,
       diamond: false,
       storedMultiplier: 1,
+      fullSince: null,
       lastHarvestAt: 0,
     };
     const next = [...plantsRef.current, newPlant];
@@ -1321,6 +1387,38 @@ export default function Home() {
             <p className="eyebrow">工具台 / {safeStage <= SHOP_UNLOCK_STAGE ? '前期' : '中期'}</p>
             <h2 className="text-xl font-bold">把金币变成效率</h2>
             <p className="mb-4 mt-1 text-xs leading-relaxed text-muted-foreground">投资会降低本关持有金币。遗物商店在第二章结尾解锁，且只在章末开放。</p>
+
+            <section className="relic-slots" aria-labelledby="relic-slots-title">
+              <div className="relic-slots-heading">
+                <h3 id="relic-slots-title"><Sparkles /> 遗物槽</h3>
+                <span>{equippedRelics.length}/{MAX_RELIC_SLOTS}</span>
+              </div>
+              <div className="relic-slot-grid">
+                {Array.from({ length: MAX_RELIC_SLOTS }, (_, index) => {
+                  const relic = equippedRelics[index];
+                  if (!relic) {
+                    return <div className="relic-slot is-empty" key={`empty-${index}`}>空槽 {index + 1}</div>;
+                  }
+                  return (
+                    <div
+                      className={`relic-slot is-filled ${relic.fused ? 'is-fused' : ''}`}
+                      key={relic.key}
+                      tabIndex={0}
+                      aria-describedby={`relic-tooltip-${relic.key}`}
+                    >
+                      <Sparkles />
+                      <span className="relic-slot-name">{relic.name}</span>
+                      <div className="relic-tooltip" id={`relic-tooltip-${relic.key}`} role="tooltip">
+                        <b>{relic.name}</b>
+                        <em>{relic.level}</em>
+                        <p>{relic.description}</p>
+                        <span>{relic.effect}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
 
             <div className="upgrade-row">
               <div className="upgrade-icon"><TrendingUp /></div>
