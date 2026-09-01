@@ -839,6 +839,50 @@ export default function Home() {
     [],
   );
 
+  useEffect(() => {
+    function handleUpgradeHotkey(event: KeyboardEvent) {
+      if (
+        event.repeat ||
+        event.isComposing ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+      ) {
+        return;
+      }
+      if (
+        document.querySelector(
+          '.console-panel.is-open, [aria-modal="true"]',
+        )
+      ) {
+        return;
+      }
+
+      const hotkey = event.key.toLowerCase();
+      if (!['q', 'w', 'e', 'r'].includes(hotkey)) return;
+
+      const button = document.querySelector<HTMLButtonElement>(
+        `[data-upgrade-hotkey="${hotkey}"]`,
+      );
+      if (!button || button.disabled) return;
+
+      event.preventDefault();
+      button.click();
+    }
+
+    window.addEventListener('keydown', handleUpgradeHotkey);
+    return () => window.removeEventListener('keydown', handleUpgradeHotkey);
+  }, []);
+
   function tendPlant(index: number) {
     if (status !== 'playing') return;
     const sourcePlants = plantsRef.current;
@@ -1222,22 +1266,22 @@ export default function Home() {
             <div className="upgrade-row">
               <div className="upgrade-icon"><TrendingUp /></div>
               <div className="min-w-0 flex-1"><h3>选中植物 <em>Lv.{selectedPlant?.level ?? 1}</em></h3><p>单株基础产出 +1</p></div>
-              <Button onClick={upgradeSelectedPlant} disabled={coins < plantLevelCost}>{plantLevelCost} ◎</Button>
+              <Button onClick={upgradeSelectedPlant} disabled={coins < plantLevelCost} data-upgrade-hotkey="q" aria-keyshortcuts="Q"><kbd>Q</kbd>{plantLevelCost} ◎</Button>
             </div>
             <div className="upgrade-row">
               <div className="upgrade-icon"><Droplets /></div>
               <div className="min-w-0 flex-1"><h3>强效浇灌 <em>Lv.{clickLevel}</em></h3><p>点击成长 +7%</p></div>
-              <Button onClick={buyClickPower} disabled={coins < clickCost}>{clickCost} ◎</Button>
+              <Button onClick={buyClickPower} disabled={coins < clickCost} data-upgrade-hotkey="w" aria-keyshortcuts="W"><kbd>W</kbd>{clickCost} ◎</Button>
             </div>
             <div className="upgrade-row">
               <div className="upgrade-icon"><CopyPlus /></div>
               <div className="min-w-0 flex-1"><h3>扦插繁育 <em>{plants.length}/{MAX_PLANTS}</em></h3><p>复制选中植物等级与间隔</p></div>
-              <Button onClick={cloneSelectedPlant} disabled={coins < cloneCost || plants.length >= MAX_PLANTS}>{plants.length >= MAX_PLANTS ? '已满' : `${cloneCost} ◎`}</Button>
+              <Button onClick={cloneSelectedPlant} disabled={coins < cloneCost || plants.length >= MAX_PLANTS} data-upgrade-hotkey="e" aria-keyshortcuts="E"><kbd>E</kbd>{plants.length >= MAX_PLANTS ? '已满' : `${cloneCost} ◎`}</Button>
             </div>
             <div className="upgrade-row">
               <div className="upgrade-icon"><Expand /></div>
               <div className="min-w-0 flex-1"><h3>扩散喷头 <em>Lv.{areaLevel}</em></h3><p>{areaLevel === 0 ? '催生并收获相邻植物' : areaLevel === 1 ? '范围扩大到 2 格' : '已覆盖最大范围'}</p></div>
-              <Button onClick={buyArea} disabled={coins < areaCost || areaLevel >= 2}>{areaLevel >= 2 ? '满级' : `${areaCost} ◎`}</Button>
+              <Button onClick={buyArea} disabled={coins < areaCost || areaLevel >= 2} data-upgrade-hotkey="r" aria-keyshortcuts="R"><kbd>R</kbd>{areaLevel >= 2 ? '满级' : `${areaCost} ◎`}</Button>
             </div>
 
             <div className="manual-card">

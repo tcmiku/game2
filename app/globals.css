@@ -366,6 +366,9 @@ body {
 .upgrade-row button {
   @apply min-w-16 shadow-[2px_2px_0_#172019];
 }
+.upgrade-row button kbd {
+  @apply grid size-5 shrink-0 place-items-center border border-current/30 bg-background/20 font-mono text-[10px] font-black;
+}
 .manual-card {
   @apply mt-4 flex items-center gap-3 border border-foreground/15 bg-muted/70 p-3;
 }
