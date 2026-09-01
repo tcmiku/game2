@@ -74,18 +74,63 @@ body {
 }
 
 .game-shell {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 5.75rem);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 8.75rem);
 }
 .floating-stats {
-  @apply fixed flex gap-2;
+  @apply fixed flex flex-col gap-2;
   z-index: 50;
   top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
   left: max(1rem, env(safe-area-inset-left, 0px));
   right: max(1rem, env(safe-area-inset-right, 0px));
 }
+.floating-stat-row {
+  @apply flex gap-2;
+}
 .floating-stats .stat-chip {
   @apply min-w-0 flex-1;
   backdrop-filter: blur(8px);
+}
+.floating-progress-panel {
+  @apply grid grid-flow-col auto-cols-fr gap-2 border border-foreground/20 bg-card/95 px-3 py-2 shadow-[3px_3px_0_#172019];
+  backdrop-filter: blur(8px);
+}
+.floating-meter {
+  @apply min-w-0;
+}
+.floating-meter > span {
+  @apply mb-1 flex items-center justify-between gap-1 font-mono text-[9px] leading-none;
+}
+.floating-meter b {
+  @apply truncate;
+}
+.floating-meter small {
+  @apply shrink-0 text-[8px] text-muted-foreground;
+}
+.floating-meter progress {
+  @apply block h-1.5 w-full overflow-hidden bg-muted;
+  appearance: none;
+}
+.floating-meter progress::-webkit-progress-bar {
+  background: var(--muted);
+}
+.floating-meter progress::-webkit-progress-value {
+  background: var(--primary);
+  transition: width 300ms ease;
+}
+.floating-meter progress::-moz-progress-bar {
+  background: var(--primary);
+}
+.golden-meter progress::-webkit-progress-value {
+  background: #d59214;
+}
+.golden-meter progress::-moz-progress-bar {
+  background: #d59214;
+}
+.diamond-meter progress::-webkit-progress-value {
+  background: #1598ad;
+}
+.diamond-meter progress::-moz-progress-bar {
+  background: #1598ad;
 }
 
 @media (min-width: 640px) {
@@ -95,6 +140,7 @@ body {
   .floating-stats {
     left: auto;
     right: max(1.5rem, calc((100vw - 80rem) / 2 + 1.5rem));
+    width: 20.5rem;
   }
   .floating-stats .stat-chip {
     @apply min-w-32 flex-none;

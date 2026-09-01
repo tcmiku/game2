@@ -8,6 +8,8 @@ import {
   CopyPlus,
   Droplets,
   Expand,
+  Flower2,
+  Gem,
   Leaf,
   MousePointer2,
   RotateCcw,
@@ -128,7 +130,7 @@ const RELICS: Array<{
     id: 'goldenDrop',
     name: '黄金水滴',
     branch: '黄金植物',
-    description: `提高植物生长速率；每收获 ${GOLDEN_FRAGMENT_HARVESTS} 次获得碎片，4 枚生成黄金植物。`,
+    description: `提高植物生长速率；每收获 ${GOLDEN_FRAGMENT_HARVESTS} 次获得碎片，4 枚生成黄金植物，并使其最小收获间隔缩短 0.2 秒。`,
     baseCost: 8,
   },
   {
@@ -185,7 +187,7 @@ const FUSIONS: Array<{
     id: 'goldenHarvester',
     name: '黄金收割机',
     materials: ['autoHarvester', 'goldenDrop'],
-    description: '保留两件遗物效果；收割黄金植物产生钻石碎片，4枚可升级一株钻石植物。',
+    description: '保留两件遗物效果；收割黄金植物产生钻石碎片，4枚可升级一株钻石植物，并再缩短 0.2 秒最小收获间隔。',
   },
   {
     id: 'santiago',
@@ -237,6 +239,14 @@ const EMPTY_HARVEST_STATS: HarvestStats = {
 const MAX_PLANTS = 18;
 const MIN_HARVEST_MS = 300;
 const FUSED_MIN_HARVEST_MS = 100;
+const SPECIAL_PLANT_INTERVAL_REDUCTION_MS = 200;
+
+function shortenHarvestInterval(minHarvestMs: number, hasCatDog: boolean) {
+  return Math.max(
+    hasCatDog ? FUSED_MIN_HARVEST_MS : MIN_HARVEST_MS,
+    minHarvestMs - SPECIAL_PLANT_INTERVAL_REDUCTION_MS,
+  );
+}
 
 function makeInitialPlants(): Plant[] {
   return [
@@ -581,9 +591,18 @@ export default function Home() {
         nextStats.diamondFragments -= DIAMOND_FRAGMENT_REQUIREMENT;
         const chosen = goldenPlants[randomIndex(goldenPlants.length)];
         nextPlants = nextPlants.map((plant) =>
-          plant.id === chosen.id ? { ...plant, diamond: true } : plant,
+          plant.id === chosen.id
+            ? {
+                ...plant,
+                diamond: true,
+                minHarvestMs: shortenHarvestInterval(
+                  plant.minHarvestMs,
+                  fusedRelics.catDog,
+                ),
+              }
+            : plant,
         );
-        events.push('黄金植物升级为钻石植物');
+        events.push('黄金植物升级为钻石植物 · 间隔 -0.2s');
       }
     }
 
@@ -606,10 +625,14 @@ export default function Home() {
                   diamond: false,
                   growth: 100,
                   ripeSince: now,
+                  minHarvestMs: shortenHarvestInterval(
+                    plant.minHarvestMs,
+                    fusedRelics.catDog,
+                  ),
                 }
               : plant,
           );
-          events.push('生成黄金植物');
+          events.push('生成黄金植物 · 间隔 -0.2s');
         } else {
           directBonus += 250 * relicLevels.goldenDrop;
           events.push(`黄金碎片兑换 +${250 * relicLevels.goldenDrop}`);
@@ -1071,19 +1094,39 @@ export default function Home() {
             </h1>
           </div>
           <div className="floating-stats" aria-label="实时游戏状态">
-            <div
-              key={coinBurst.serial}
-              className={`stat-chip coin-chip ${coinBurst.amount > 0 ? `coin-hit-${coinBurstTier}` : ''}`}
-            >
-              <Coins />
-              <span><b>{coins}</b><small>当前金币</small></span>
-              {coinBurst.amount > 0 && (
-                <i className={`coin-burst ${coinBurstTier}`}>+{coinBurst.amount}</i>
-              )}
+            <div className="floating-stat-row">
+              <div
+                key={coinBurst.serial}
+                className={`stat-chip coin-chip ${coinBurst.amount > 0 ? `coin-hit-${coinBurstTier}` : ''}`}
+              >
+                <Coins />
+                <span><b>{coins}</b><small>当前金币</small></span>
+                {coinBurst.amount > 0 && (
+                  <i className={`coin-burst ${coinBurstTier}`}>+{coinBurst.amount}</i>
+                )}
+              </div>
+              <div className={`stat-chip ${timeLeft <= 8 ? 'is-urgent' : ''}`}>
+                <Timer />
+                <span><b>{formatTime(timeLeft)}</b><small>结算倒计时</small></span>
+              </div>
             </div>
-            <div className={`stat-chip ${timeLeft <= 8 ? 'is-urgent' : ''}`}>
-              <Timer />
-              <span><b>{formatTime(timeLeft)}</b><small>结算倒计时</small></span>
+            <div className="floating-progress-panel">
+              <div className="floating-meter goal-meter">
+                <span><b>账单</b><small>{Math.round(goalPercent)}%</small></span>
+                <progress value={goalPercent} max={100} aria-label={`金币目标完成 ${Math.round(goalPercent)}%`} />
+              </div>
+              {relicLevels.goldenDrop > 0 && (
+                <div className="floating-meter golden-meter">
+                  <span><b>黄金碎片 {harvestStats.fragments}/4</b><small>{harvestStats.goldenProgress}/{GOLDEN_FRAGMENT_HARVESTS}</small></span>
+                  <progress value={harvestStats.goldenProgress} max={GOLDEN_FRAGMENT_HARVESTS} aria-label={`黄金碎片 ${harvestStats.fragments} 枚，下一枚获取进度 ${harvestStats.goldenProgress}/${GOLDEN_FRAGMENT_HARVESTS}`} />
+                </div>
+              )}
+              {fusedRelics.goldenHarvester && (
+                <div className="floating-meter diamond-meter">
+                  <span><b>钻石碎片</b><small>{harvestStats.diamondFragments}/{DIAMOND_FRAGMENT_REQUIREMENT}</small></span>
+                  <progress value={harvestStats.diamondFragments} max={DIAMOND_FRAGMENT_REQUIREMENT} aria-label={`钻石碎片获取进度 ${harvestStats.diamondFragments}/${DIAMOND_FRAGMENT_REQUIREMENT}`} />
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -1111,19 +1154,13 @@ export default function Home() {
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_330px]">
           <div className="game-panel">
-            <div className="mb-5 grid gap-4 sm:grid-cols-[1fr_220px] sm:items-end">
+            <div className="mb-5">
               <div>
                 <p className="eyebrow">第 {bigChapter} 章 · 小关 {stageInChapter}/{STAGES_PER_CHAPTER} · 总进度 {safeStage}/{TOTAL_STAGES}</p>
                 <h2 className="text-xl font-bold">{stageData.name} · 结算时持有 {stageData.goal} 金币</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {gap > 0 ? `还差 ${gap} 金币，升级消费也会减少当前金币。` : '目标已达成！守住余额直到结算。'}
                 </p>
-              </div>
-              <div>
-                <div className="mb-1 flex justify-between font-mono text-[10px] font-bold uppercase tracking-wider">
-                  <span>账单进度</span><span>{Math.round(goalPercent)}%</span>
-                </div>
-                <progress value={goalPercent} max={100} className="native-progress" aria-label={`金币目标完成 ${Math.round(goalPercent)}%`} />
               </div>
             </div>
 
@@ -1149,8 +1186,14 @@ export default function Home() {
                     aria-label={`第 ${index + 1} 株植物，等级 ${plant.level}，成长 ${Math.round(plant.growth)}%，最小收获间隔 ${(plant.minHarvestMs / 1000).toFixed(1)} 秒`}
                   >
                     <span className="plot-number">{String(index + 1).padStart(2, '0')}</span>
-                    {plant.diamond ? <span className="diamond-mark"><Sparkles /> 钻石</span> : plant.golden && <span className="golden-mark"><Sparkles /> 黄金</span>}
-                    <Sprout aria-hidden="true" style={{ transform: `scale(${0.72 + plant.growth / 360})` }} />
+                    {plant.diamond ? <span className="diamond-mark"><Gem /> 钻石</span> : plant.golden && <span className="golden-mark"><Flower2 /> 黄金</span>}
+                    {plant.diamond ? (
+                      <Gem className="plant-type-icon" aria-hidden="true" style={{ transform: `scale(${0.72 + plant.growth / 360})` }} />
+                    ) : plant.golden ? (
+                      <Flower2 className="plant-type-icon" aria-hidden="true" style={{ transform: `scale(${0.72 + plant.growth / 360})` }} />
+                    ) : (
+                      <Sprout className="plant-type-icon" aria-hidden="true" style={{ transform: `scale(${0.72 + plant.growth / 360})` }} />
+                    )}
                     <span className="plant-name">
                       {disabled ? 'Boss 已禁用' : plant.storedMultiplier > 1 ? `金币蓄积 ×${plant.storedMultiplier}` : plant.diamond ? `钻石植物 · Lv.${plant.level}` : plant.golden ? `黄金植物 · Lv.${plant.level}` : ripe ? `可收获 · Lv.${plant.level}` : `日光芽 Lv.${plant.level}`}
                     </span>
