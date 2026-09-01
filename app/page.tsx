@@ -174,7 +174,7 @@ const RELICS: Array<{
     id: 'critRing',
     name: '暴击戒指',
     branch: '暴击',
-    description: '增加暴击率，并允许一次收获连续触发暴击。',
+    description: '每级增加10%暴击率；成功暴击后可以继续判定，但下一次暴击率减半。',
     baseCost: 7,
   },
   {
@@ -388,6 +388,11 @@ function drawRelicOffers(levels: RelicLevels, fused: FusedRelics) {
     .map((relic) => relic.id);
 }
 
+function critRingRepeatCount(level: number) {
+  if (level >= 6) return 2;
+  return level > 0 ? 1 : 0;
+}
+
 function relicEffect(id: RelicId, level: number) {
   const shownLevel = Math.max(1, level);
   switch (id) {
@@ -402,7 +407,7 @@ function relicEffect(id: RelicId, level: number) {
     case 'midasHand':
       return `手动收获倍率 ×${(2.5 + (shownLevel - 1) * 0.5).toFixed(2)}`;
     case 'critRing':
-      return `暴击率 +${shownLevel * 5}%，最多重复暴击 ${shownLevel * 2} 次`;
+      return `暴击率 +${shownLevel * 10}%，可重复暴击 ${critRingRepeatCount(shownLevel)} 次；每次暴击后下次概率减半`;
     case 'bigDog':
       return `每 ${Math.max(24, 72 - shownLevel * 8)} 次收获，随机植物等级 +${Math.ceil(shownLevel / 2)}`;
     case 'maodie':
@@ -567,7 +572,7 @@ export default function Home() {
         (relicLevels.infinityBlade > 0
           ? 0.08 + relicLevels.infinityBlade * 0.05
           : 0) +
-          relicLevels.critRing * 0.05,
+          relicLevels.critRing * 0.1,
       );
       const critMultiplier =
         relicLevels.infinityBlade > 0
@@ -582,13 +587,13 @@ export default function Home() {
           rollingChance *= 0.8;
         }
       } else {
-        const maxCrits =
-          relicLevels.critRing > 0 ? 1 + relicLevels.critRing * 2 : 1;
+        const maxCrits = 1 + critRingRepeatCount(relicLevels.critRing);
+        let rollingChance = critChance;
         for (let attempt = 0; attempt < maxCrits; attempt += 1) {
-          if (Math.random() >= critChance) break;
+          if (Math.random() >= rollingChance) break;
           plantIncome *= critMultiplier;
           criticalHits += 1;
-          if (relicLevels.critRing === 0) break;
+          rollingChance *= 0.5;
         }
       }
 
