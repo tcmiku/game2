@@ -36,3 +36,16 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# Python pixel-art generation
+.venv/
+__pycache__/
+playwright-report/
+test-results/
+/godot/.godot/
+/godot/index.*
+/.tools/
+*.import
+
+# UI verification screenshots
+tests/*.png
