@@ -1,0 +1,30 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>长夜 · 四人同步回归</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#0b151b;color:#dce7d9;font:13px system-ui}header{display:flex;align-items:center;gap:16px;height:64px;padding:10px 20px}header strong{margin-right:auto}button{padding:8px 12px;border:1px solid #56645f;background:#17242b;color:inherit;border-radius:5px}canvas{display:block;width:100vw;height:calc(100vh - 100px);image-rendering:pixelated}output{display:block;height:36px;padding:8px 20px;font:12px monospace;color:#b3cbbf}</style>
+<header><strong>四人联机 · 预测与角色识别</strong><span>WASD 移动琥珀色 P4</span><button id="loss">模拟丢包 600ms</button><button id="crowd">四人靠近</button></header>
+<canvas aria-label="四人联机预测与配色验证"></canvas><output>加载中…</output>
+<script type="module">
+import {World,Renderer} from '/lib/game.mjs';
+import {RemoteView,packSnapshot,unpackSnapshot} from '/lib/network.mjs';
+const r=new Renderer(document.querySelector('canvas')),view=new RemoteView(),w=new World(Array.from({length:4},(_,i)=>({id:`p${i}`,name:'同名旅人',weapon:['blade','storm','orbit','bow'][i]})),()=>.4),keys=new Set(),out=document.querySelector('output');
+w.spawnCd=1e6;for(const [i,p]of w.s.players.entries()){p.x=1170+i*60;p.y=810;p.hp=p.maxHp=10000;p.damage=1;}
+w.s.enemies=Array.from({length:10},(_,i)=>({id:9000+i,x:1500+i%3*50,y:600+Math.floor(i/3)*65,type:1+i%3,hp:1e6,maxHp:1e6,size:20,speed:3,hit:0,slow:0,orbitCd:0,phase:i*.4}));
+let last=performance.now()/1000,lastSend=0,moveAt=last,prevX=0,prevY=0,blocked=0,frames=0,packets=0,rawBytes=0,wireBytes=0;const incoming=[],snapshots=[];
+window.addEventListener('keydown',e=>{if(['w','a','s','d'].includes(e.key)){e.preventDefault();keys.add(e.key);}});window.addEventListener('keyup',e=>keys.delete(e.key));window.addEventListener('blur',()=>keys.clear());
+document.querySelector('#loss').onclick=()=>blocked=performance.now()/1000+.6;
+document.querySelector('#crowd').onclick=()=>{for(const [i,p]of w.s.players.entries()){p.x=1200+i*13;p.y=800+i*3;}view.reset();};
+try{
+ await Promise.all([r.arena,r.atlas,r.actors,r.foes,r.walk,r.hitAtlas,r.relicAtlas,r.weaponAtlas,r.vfxAtlas,r.bestiary,r.uiAtlas].map(im=>im.decode()));
+ requestAnimationFrame(function frame(ms){try{
+  const now=ms/1000,dt=Math.min(.05,now-last);last=now;const x=+keys.has('d')-+keys.has('a'),y=+keys.has('s')-+keys.has('w');
+  if(x!==prevX||y!==prevY){moveAt=now;prevX=x;prevY=y;}
+  if(now-lastSend>=.05){lastSend=now;incoming.push({at:now+.055,input:{x,y,moveAt}});const packet=packSnapshot(w.s);rawBytes+=JSON.stringify(w.s).length;wireBytes+=JSON.stringify(packet).length;if(now>=blocked)snapshots.push({at:now+.065,packet});}
+  while(incoming[0]?.at<=now)w.input('p3',incoming.shift().input);
+  for(const p of w.s.players){p.hp=p.maxHp;p.choices=[];}w.step(dt);
+  while(snapshots[0]?.at<=now){const packet=snapshots.shift().packet;view.receive(unpackSnapshot(packet),'p3',now);packets++;}
+  const s=view.sample({x,y},now,dt);if(s)r.render(s,'p3',dt,false,true);frames++;
+  out.textContent=`PASS · ${frames} 帧 / ${packets} 快照 · 模拟往返延迟 120ms · 快照减小 ${Math.round((1-wireBytes/rawBytes)*100)}% · ${now<blocked?'正在丢包':'同步正常'} · 伤害、升级与拾取由房主判定`;
+  requestAnimationFrame(frame);
+ }catch(error){out.textContent='FAIL: '+error.stack;console.error(error);}});
+}catch(error){out.textContent='FAIL: '+error.stack;console.error(error);}
+</script></html>

@@ -1,0 +1,11 @@
+.avatar { position: relative; }
+.avatar > b {
+  position: absolute; right: 2px; bottom: 2px; z-index: 1;
+  padding: 2px 4px; border-radius: 3px; background: #071016e6;
+  font: 700 10px monospace; letter-spacing: .5px;
+}
+.member > div > b { font: 700 14px monospace; }
+.party-dot { width: 7px; height: 7px; }
+.network-signal{display:flex;align-items:center;gap:5px;color:#b6c5ad;min-width:49px;font:10px monospace}
+.network-signal small{font-size:9px}.network-signal.fair{color:#d1c191}.network-signal.slow,.network-signal.reconnecting{color:#dca293}.party-dot.offline{opacity:.35}
+@media(max-width:440px){.in-game .top-actions{gap:9px}.network-signal{min-width:42px}.connected{letter-spacing:2px}}

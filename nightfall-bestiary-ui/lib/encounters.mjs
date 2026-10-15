@@ -1,0 +1,82 @@
+import {attackContact,cancelBullet,circleContact} from './counterfire.mjs';
+import {ARENA_W,ARENA_H} from './frontier.mjs';
+import {stepBestiaryAttack,bestiaryMotion,stepBestiaryHazard,drawBestiaryWarnings,drawBestiaryHazard,drawBestiaryBullet} from './bestiary.mjs';
+/** Authoritative enemy attacks; presentation reads these same bounded records. */
+export const DEATH_TIME=1800;
+export const ELITE_TIERS={1:{name:'翠影',color:'#82ef9d',health:3},2:{name:'苍焰',color:'#70b6ff',health:7},3:{name:'赤祸',color:'#ff6c78',health:14}};
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+export function rollElite(time,random){
+ if(time<30||random()>.065+Math.min(.055,time/18000))return 0;
+ const r=random();return time>=600&&r<.2?3:time>=180&&r<.5?2:1;
+}
+export function hurtPlayer(w,p,damage){
+ if(p.hp<=0||p.connected===false||p.hitCd>0||p.choices.length)return false;
+ p.hp=Math.max(0,p.hp-damage*Math.max(.25,1-(p.ranks?.ward||0)*.08));p.hitCd=.65;w.effect(p.x,p.y,'hit',.25,55);w.events.push('hurt');return true;
+}
+function bullet(w,e,angle,speed=210,damage=12,radius=10){
+ w.s.hostile.push({id:w.nextId(),owner:e.id,sourceType:e.type,cancellable:e.type!==4&&e.type!==7,x:e.x,y:e.y-24,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,radius,damage,life:6,kind:e.type===4?'thorn':'orb'});
+}
+function hazard(w,e,target,kind,radius,delay){
+ w.s.hazards.push({id:w.nextId(),owner:e.id,kind,x:target.x,y:target.y,radius,wait:delay,life:delay+.45,damage:24+6*(e.cycle||1),fired:false});
+}
+export function stepEnemyAttack(w,e,target,dt){
+ if(e.type===7){e.frozen=e.slow=e.stagger=0;return;}
+ if(stepBestiaryAttack(w,e,target,dt))return;
+ if(e.type!==4&&e.type!==6)return;
+ e.skillCd=(e.skillCd??(e.type===4?1.8:1.1))-dt;
+ if(e.type===6){
+  if(e.skillCd<.5&&!e.aiming){e.aiming=true;e.attackAt=w.s.time;e.attackAngle=Math.atan2(target.y-e.y,target.x-e.x);}
+  if(e.skillCd<=0){const a=Math.atan2(target.y-e.y,target.x-e.x),count=e.elite?3:1;for(let i=0;i<count;i++)bullet(w,e,a+(i-(count-1)/2)*.22,210,12+(e.elite||0)*4,11);e.attackAt=w.s.time-.14;e.aiming=false;e.skillCd=2.8;}
+  return;
+ }
+ if(e.skillCd>.8)return;
+ if(!e.skill){
+  const index=(e.skillIndex||0)%3;e.skillIndex=(e.skillIndex||0)+1;e.skill=['thorns','roots','charge'][index];e.attackAt=w.s.time;e.attackAngle=Math.atan2(target.y-e.y,target.x-e.x);
+  if(e.skill==='roots'){for(const p of w.s.players.filter(p=>p.hp>0)){hazard(w,e,p,'roots',95,1.2);hazard(w,e,{x:p.x+115,y:p.y-50},'roots',70,1.5);}}
+  if(e.skill==='charge'){e.chargeAngle=e.attackAngle;hazard(w,e,{x:e.x,y:e.y},'charge',65,.8);}
+ }
+ if(e.skillCd<=0){
+  if(e.skill==='thorns'){for(let i=0;i<18;i++)bullet(w,e,i*Math.PI/9+(e.cycle||0)*.13,190+(e.cycle||1)*8,18+4*(e.cycle||1),12);}
+  if(e.skill==='charge')e.chargeLeft=.85;
+  e.skill='';e.skillCd=e.hp<e.maxHp*.4?3.1:4.5;
+ }
+}
+export function enemyMotion(e,target,distance){
+ const extra=bestiaryMotion(e,distance);if(extra!==null)return extra;
+ if(e.type===7)return 1;
+ if(e.type===4&&e.skill==='charge')return 0;
+ if(e.type===4&&e.chargeLeft>0)return 0;
+ if(e.type===6)return distance>340?1:distance<230?-.55:0;
+ return 1;
+}
+export function stepHostiles(w,dt){
+ const s=w.s;
+ for(const h of s.hazards){h.wait-=dt;h.life-=dt;if(stepBestiaryHazard(w,h,dt,hurtPlayer))continue;if(h.wait<=0&&!h.fired){h.fired=true;if(h.kind==='roots')for(const p of s.players)if(dist(p,h)<h.radius+12)hurtPlayer(w,p,h.damage);}}
+ for(const b of s.hostile){
+  if(b.life<=0)continue;
+  const ox=b.x,oy=b.y,tx=b.x+b.vx*dt,ty=b.y+b.vy*dt,contact=attackContact(w,b,ox,oy,tx,ty);b.life-=dt;
+  const hits=s.players.filter(p=>p.hp>0).map(p=>({p,t:circleContact(ox,oy,tx,ty,p.x,p.y,b.radius+14)})).filter(hit=>hit.t<=1).sort((a,b)=>a.t-b.t);
+  for(const hit of hits){if(contact&&contact.t<=hit.t)break;if(hurtPlayer(w,hit.p,b.damage)){b.life=0;break;}}
+  if(b.life>0&&contact)cancelBullet(w,b,contact,ox,oy,tx,ty);else{b.x=tx;b.y=ty;}
+ }
+ s.hostile=s.hostile.filter(b=>b.life>0&&b.x>-60&&b.x<(s.width||ARENA_W)+60&&b.y>-60&&b.y<(s.height||ARENA_H)+60).slice(-160);
+ s.hazards=s.hazards.filter(h=>h.life>0).slice(-48);
+}
+export function drawHostiles(renderer,s,time){
+ const c=renderer.ctx;drawBestiaryWarnings(renderer,s,time);
+ for(const h of s.hazards||[]){
+  if(drawBestiaryHazard(renderer,h,time))continue;
+  c.save();c.lineWidth=3;c.strokeStyle=h.wait>0?'#ffab77':'#ff626b';c.fillStyle=h.wait>0?'#e563392a':'#f9655655';c.beginPath();c.arc(h.x,h.y,h.radius,0,Math.PI*2);c.fill();c.stroke();
+  c.lineWidth=2;c.strokeStyle='#ffe0ae';c.beginPath();c.arc(h.x,h.y,h.radius*.82,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.max(0,1-h.wait/1.5));c.stroke();
+  for(let j=0;j<6;j++){const a=j*Math.PI/3;c.fillStyle='#ffbd89';c.fillRect(h.x+Math.cos(a)*h.radius-3,h.y+Math.sin(a)*h.radius-3,6,6);}c.restore();
+ }
+ for(const e of s.enemies||[])if(e.type===4&&e.skill==='charge'){
+  c.save();c.strokeStyle='#ffbe84';c.lineWidth=5;c.setLineDash([12,9]);c.beginPath();c.moveTo(e.x,e.y);c.lineTo(e.x+Math.cos(e.chargeAngle)*550,e.y+Math.sin(e.chargeAngle)*550);c.stroke();c.restore();
+ }
+ for(const b of s.hostile||[]){
+  if(drawBestiaryBullet(renderer,b))continue;
+  const size=b.radius*2;c.save();c.strokeStyle='#18212d';c.lineWidth=size*.85;c.beginPath();c.moveTo(b.x-b.vx*.09,b.y-b.vy*.09);c.lineTo(b.x,b.y);c.stroke();
+  c.strokeStyle='#ff826a';c.lineWidth=size*.45;c.stroke();
+  renderer.foeSprite(b.kind==='thorn'?3:2,b.x,b.y,size*2.6,Math.atan2(b.vy,b.vx));c.restore();
+ }
+}

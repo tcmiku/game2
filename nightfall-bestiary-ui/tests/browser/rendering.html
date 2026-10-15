@@ -1,0 +1,33 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>NIGHTFALL Canvas regression</title><style>body{margin:0;background:#0b151b;color:#d5e1cb;font:14px monospace}canvas{width:100vw;height:calc(100vh - 65px);image-rendering:pixelated}pre{margin:12px}</style><canvas aria-label="Canvas regression battle"></canvas><pre id="result">Running native Canvas checks…</pre><script type="module">
+import {World,Renderer} from '/lib/game.mjs';
+import {WEAPONS,RECIPES} from '/lib/equipment.mjs';
+const out=document.querySelector('#result'),r=new Renderer(document.querySelector('canvas'));
+const nextFrame=()=>new Promise(requestAnimationFrame);
+try {
+ await Promise.all([r.arena,r.atlas,r.actors,r.relicAtlas,r.weaponAtlas,r.vfxAtlas,r.bestiary,r.uiAtlas,r.hitAtlas,r.foes].map(im=>im.decode()));
+ const w=new World();w.s.chests.push({id:8,x:1200,y:800});r.render(w.s,'solo',.016);out.textContent='Chest: PASS';
+ w.s.zones.push({kind:'void',x:1200,y:800,radius:160,wait:0,life:2,max:2});r.render(w.s,'solo',.016);out.textContent+=' · Void: PASS';
+ for(const key of [...WEAPONS,...RECIPES.map(r=>r.key)]){
+  const recipe=RECIPES.find(r=>r.key===key),weapon=recipe?.weapon||key,w=new World([{id:'solo',weapon}],()=>.4),p=w.s.players[0];p.ranks[weapon]=5;
+  if(recipe)p.evolutions[weapon]=key;
+  w.spawnCd=1e5;w.s.enemies=[{id:900,x:p.x+120,y:p.y,type:4,hp:1e8,maxHp:1e8,speed:0,size:50,hit:0,slow:0,orbitCd:0,phase:0}];
+  for(let i=0;i<100;i++){p.hp=p.maxHp;p.choices=[];w.step(.05);r.render(w.s,'solo',.05);}await nextFrame();
+ }
+ const foes=new World();for(const [type,tier]of [[1,1],[2,2],[3,3],[6,2],[7,0],[8,1],[9,2],[10,3],[11,1],[12,2]])foes.spawn(type,tier);foes.s.hazards.push({kind:'roots',x:1200,y:800,radius:95,wait:.5});foes.s.hostile.push({kind:'orb',x:1200,y:800,vx:100,vy:0,radius:11});r.render(foes.s,'solo',.016);
+ out.textContent+=' · 20 weapons + 14 artifacts + elite/ranged/death drawing: PASS';
+ const full=new World([{id:'solo',weapon:'orbit'}],()=>.4),p=full.s.players[0];
+ for(const key of ['blade','orbit','nova','storm','ember','prism'])p.ranks[key]=5;
+ p.count=p.orbit=p.nova=p.storm=5;p.evolutions={blade:'eclipse',orbit:'starfall',nova:'winter',storm:'tempest',ember:'inferno',prism:'void'};
+ p.damage=80;p.maxHp=p.hp=1e6;
+ let frames=0;
+ while(full.s.time<1801&&full.s.status==='playing'){
+  for(let j=0;j<60&&full.s.time<1801;j++){
+   p.choices=[];p.hp=p.maxHp;const t=full.s.time;full.input('solo',{x:Math.cos(t*.12),y:Math.sin(t*.12)});full.step(.05);
+   if(!full.s.chests.length)full.s.chests.push({id:100000+frames,x:p.x+250,y:p.y+40});
+   r.render(full.s,'solo',.05);r.feedback.sounds=[];frames++;
+  }
+  out.textContent=`Native Canvas · ${Math.floor(full.s.time)} / 1800 seconds · ${frames} frames · ${full.s.kills} kills`;await nextFrame();
+ }
+ out.textContent=`PASS · ranged + elites + boss skills + death · chest + void · 20 weapons + 14 artifacts · ${frames} rendered frames · ${Math.floor(full.s.time)} seconds · ${full.s.kills} kills`;
+}catch(e){out.textContent='FAIL: '+e.stack;console.error(e);}
+</script></html>

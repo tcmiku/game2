@@ -1,0 +1,18 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {World} from '../lib/game.mjs';
+import {WEAPONS,RECIPES} from '../lib/equipment.mjs';
+import {stepHostiles} from '../lib/encounters.mjs';
+function scene(key='blade'){const w=new World([{id:'p',weapon:key}],()=>.4),p=w.s.players[0];w.spawnCd=w.eliteAt=w.s.nextBossAt=1e9;w.s.props=[];p.ranks[key]=5;p.count=key==='blade'?5:0;p.orbit=key==='orbit'?5:0;p.nova=key==='nova'?5:0;p.storm=key==='storm'?5:0;p.nextXp=1e9;p.hitCd=1e9;w.s.enemies=[{id:900,x:p.x+120,y:p.y,type:1,hp:1e8,maxHp:1e8,size:20,speed:0,hit:0,slow:0,orbitCd:0,phase:0}];return{w,p};}
+function bullet(w,x,y,extra={}){return{id:w.nextId(),owner:900,sourceType:6,cancellable:true,kind:'orb',x,y,vx:-60,vy:0,radius:7,damage:10,life:2,...extra};}
+test('every weapon and every artifact cancels actual ordinary enemy bullets through its real attack path',()=>{
+ for(const key of [...WEAPONS,...RECIPES.map(r=>r.key)]){
+  const recipe=RECIPES.find(r=>r.key===key),{w,p}=scene(recipe?.weapon||key);if(recipe)p.evolutions[recipe.weapon]=key;
+  for(let i=0;i<140;i++){w.s.enemies[0].knockX=w.s.enemies[0].knockY=0;if(i%8===0)for(let x=0;x<=320;x+=20)for(const y of [-10,0])w.s.hostile.push(bullet(w,p.x+x,p.y+y));w.step(.05);}
+  assert.ok(p.blockedShots>0,key+' must cancel at least one bullet');assert.equal(p.hp,p.maxHp);
+ }
+});
+test('fast friendly projectiles cancel along their swept path without using piercing or damage',()=>{const {w,p}=scene();p.cooldown=999;p.ranks={};w.s.shots=[{id:w.nextId(),owner:p.id,weapon:'blade',x:p.x-100,y:p.y+100,vx:4000,vy:0,life:1,damage:20,pierce:3,hit:[],scale:1}];w.s.hostile=[bullet(w,p.x,p.y+100,{vx:0})];w.step(.05);assert.equal(w.s.hostile.length,0);assert.equal(w.s.shots[0].pierce,3);assert.equal(w.s.shots[0].hit.length,0);assert.equal(p.kills,0);assert.equal(p.xp,0);assert.equal(p.stats.blade.damage,0);assert.ok(w.s.effects.some(f=>f.type==='counter'));});
+test('ordinary and elite bullets are cancelable but boss projectiles and ground hazards retain their rules',()=>{const {w,p}=scene();w.guard(p,'nova',{x:p.x+100,y:p.y,radius:60});w.s.hostile=[bullet(w,p.x+100,p.y,{vx:0}),bullet(w,p.x+100,p.y,{vx:0,sourceType:10,kind:'bolt'}),bullet(w,p.x+100,p.y,{vx:0,sourceType:4,kind:'thorn',cancellable:false}),bullet(w,p.x+100,p.y,{vx:0,sourceType:7})];w.s.hazards=[{kind:'roots',x:p.x+100,y:p.y,radius:60,wait:1,life:2}];stepHostiles(w,.05);assert.equal(w.s.hostile.length,2);assert.equal(p.blockedShots,2);assert.equal(w.s.hazards.length,1);});
+test('collision order protects the player only when an attack is encountered before their body',()=>{for(const ahead of [true,false]){const {w,p}=scene();p.hitCd=0;w.guards=[];w.guard(p,'spear',{x:p.x+(ahead?60:-60),y:p.y,radius:8});w.s.hostile=[bullet(w,p.x+100,p.y,{vx:-4000,radius:4})];stepHostiles(w,.05);assert.equal(p.hp,ahead?p.maxHp:p.maxHp-10);assert.equal(p.blockedShots||0,ahead?1:0);}});
+test('unarmed traps, warning runes, idle towers and dead or disconnected owners do not erase bullets',()=>{const {w,p}=scene();p.ranks={};p.count=0;w.s.enemies=[];w.s.zones=[{id:50,owner:p.id,weapon:'sigil',kind:'sigil',x:p.x+100,y:p.y,radius:80,damage:10,wait:.8,life:2,max:2,tick:0},{id:51,owner:p.id,weapon:'mine',kind:'mine',x:p.x+100,y:p.y,radius:80,damage:10,wait:0,life:2,max:2,tick:0},{id:52,owner:p.id,weapon:'turret',kind:'turret',x:p.x+100,y:p.y,radius:440,damage:10,rank:1,wait:0,life:2,max:2,tick:0}];w.s.hostile=[bullet(w,p.x+100,p.y,{vx:0})];w.step(.05);assert.equal(w.s.hostile.length,1);for(const mode of ['death','disconnect']){w.guards=[];w.guard(p,'nova',{x:p.x+100,y:p.y,radius:80});if(mode==='death')p.hp=0;else{p.hp=100;p.connected=false;}stepHostiles(w,.05);assert.equal(w.s.hostile.length,1);}});
