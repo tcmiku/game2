@@ -1,0 +1,11 @@
+'use client';
+import {bossDefinition,bossPhase,BOSSES} from '../../lib/bosses.mjs';
+export function BossHud({state}:{state:any}){
+ const bosses=(state.enemies||[]).filter((e:any)=>(e.type===4||e.type===7)&&e.hp>0),warning=state.bossWarning,showWarning=warning&&state.time>=warning.at&&state.time<warning.until,def=showWarning?(BOSSES as any)[warning.kind]:null,arrived=warning&&state.time>=warning.arrive;
+ return <>
+  {showWarning&&def&&<div className="boss-warning" role="alert" data-arrived={arrived} key={`${state.runId}-${warning.at}`}>
+   <div className="boss-warning-stripes"/><div className="boss-warning-body"><div className="boss-warning-kanji" aria-hidden="true">警告</div><div className="boss-warning-message"><strong className="boss-emergency">EMERGENCY</strong><div className="boss-warning-subject"><span>{arrived?'警戒线突破':'异常生命反应接近'}</span><b>{def.name}</b></div></div><div className="boss-warning-clock"><span>{arrived?'目标确认':'侵入倒计时'}</span><b aria-hidden="true">{arrived?'!!':Math.max(0,Math.ceil(warning.arrive-state.time)).toString().padStart(2,'0')}</b></div></div><div className="boss-warning-stripes"/>
+  </div>}
+  {!!bosses.length&&<div className="boss-hud-stack">{bosses.map((boss:any)=>{const d=bossDefinition(boss),percent=Math.max(0,Math.min(100,boss.hp/boss.maxHp*100));return <section className="boss-vital" data-critical={percent<30} key={boss.id} aria-label={`${d.name}血量`}><div className="boss-target-number"><small>TARGET</small><b>{d.code.split(' · ')[0]}</b></div><div className="boss-vital-main"><div className="boss-vital-heading"><strong>{d.name}</strong><span className="boss-phase">{bossPhase(boss)}</span><span className="boss-vital-value">{percent.toFixed(1)}<small>%</small></span></div><div className="boss-vital-track" role="progressbar" aria-label={d.name} aria-valuemin={0} aria-valuemax={Math.ceil(boss.maxHp)} aria-valuenow={Math.max(0,Math.ceil(boss.hp))}><i className="boss-vital-lag" style={{width:`${percent}%`}}/><i className="boss-vital-fill" style={{width:`${percent}%`}}/><div/></div><div className="boss-vital-footer"><span><i/>生命信号</span><span>{boss.encounterPlayers||1} 人战阶 <b>{String(boss.cycle||1).padStart(2,'0')}</b></span></div></div></section>;})}</div>}
+ </>;
+}

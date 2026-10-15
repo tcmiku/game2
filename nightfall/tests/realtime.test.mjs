@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {RealtimeRoom,cleanRealtimeInput,cleanSignals} from '../lib/realtime.mjs';
+import {RealtimeRoom,STATE_HISTORY_LIMIT,cleanRealtimeInput,cleanSignals} from '../lib/realtime.mjs';
 import {syncDelay} from '../lib/network.mjs';
 import {acceptSnapshot,packSnapshot,presentationPacket} from '../lib/network.mjs';
 import {World} from '../lib/game.mjs';
@@ -51,7 +51,7 @@ test('acknowledged delta bases survive delayed acknowledgements, and missing bas
  send();guest.sendInput({});while(back.length)host.receive(h,back.shift());sent.length=0;
  send();send();assert.equal(states.length,3,'two deltas based on the same acknowledged old frame both apply');assert.equal(g.downlink.frame,w.s.frame);
  g.downHistory.clear();send();assert.equal(g.resync,true);while(back.length)host.receive(h,back.shift());sent.length=0;send();assert.equal(g.resync,false);assert.equal(states.at(-1).frame,w.s.frame);
- assert.ok(h.pendingStates.size<=16);assert.ok(g.downHistory.size<=16);
+ assert.ok(h.pendingStates.size<=STATE_HISTORY_LIMIT);assert.ok(g.downHistory.size<=STATE_HISTORY_LIMIT);
 });
 test('partial snapshots are not evicted by unrelated pong sequence numbers',()=>{
  let now=0;const r=room({id:'b',now:()=>now}),g=peer(r,'a'),host=room(),h=peer(host,'b'),sent=[];h.channel.send=t=>sent.push(t);

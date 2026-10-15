@@ -34,8 +34,8 @@ test('golem shockwaves are delayed, can be dodged, and heavy bodies resist recoi
  const dodge=setup(12,110);dodge.w.step(.05);dodge.p.y+=300;advance(dodge.w,22);assert.equal(dodge.p.hp,10000);
  w.damage(e,1,p);assert.ok(Math.hypot(e.knockX,e.knockY)<=180*.24);
 });
-test('all five enemy types preserve all twelve poses and elite palettes in native atlas geometry',async()=>{
- assert.equal(ACTOR_ROWS,13);const png=await readFile(new URL('../public/art/pixel-bestiary.png',import.meta.url));assert.equal(png.readUInt32BE(16),1152);assert.equal(png.readUInt32BE(20),480);
+test('eight enemy types preserve twelve logical poses; the existing native atlas stays intact',async()=>{
+ assert.equal(ACTOR_ROWS,16);const png=await readFile(new URL('../public/art/pixel-bestiary.png',import.meta.url));assert.equal(png.readUInt32BE(16),1152);assert.equal(png.readUInt32BE(20),480);
  const ui=await readFile(new URL('../public/art/pixel-ui.png',import.meta.url));assert.equal(ui.readUInt32BE(16),384);
  for(const key of Object.keys(ENEMY_TYPES)){const type=Number(key),span=ATTACK_SPAN[type],e={type,hp:100,moving:true,attackAt:2,attackAngle:0};
   for(const [i,q]of [.1,.3,.55,.85].entries()){const a=actorPose(e,2+q*span);assert.equal(a.row,type);assert.equal(a.column,8+i);assert.equal(actorPose(e,2+q*span,{reducedMotion:true}).column,10);}

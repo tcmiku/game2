@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World} from '../lib/game.mjs';
-import {RemoteView,packSnapshot,unpackSnapshot,syncDelay} from '../lib/network.mjs';
+import {RemoteView,packSnapshot,unpackSnapshot,presentationPacket,syncDelay} from '../lib/network.mjs';
 import {PLAYER_STYLES,playerLabel,placePlayerLabels,recolorCloth} from '../lib/player-style.mjs';
 const copy=s=>JSON.parse(JSON.stringify(s));
 function scene(time=10){const w=new World([{id:'host'},{id:'guest'},{id:'third'},{id:'fourth'}],()=>.4);w.spawnCd=1e6;w.s.time=time;return w;}
@@ -55,4 +55,16 @@ test('four slots have distinct colors and recoloring affects cloth without alter
  assert.equal(playerLabel({index:2,name:'旅人'},true),'P3 旅人 · 你');
  const labels=placePlayerLabels(Array.from({length:4},(_,i)=>({x:100+i*2,y:100,width:90})));assert.equal(new Set(labels.map(l=>l.y)).size,4,'overlapping players keep separate readable nameplates');
  const w=scene();w.s.players.shift();assert.deepEqual(w.s.players.map(p=>p.index),[1,2,3],'leaving never renumbers surviving players');
+});
+
+test('single-pass realtime packing matches authority presentation and owns all nested values',()=>{
+ const w=scene();w.lastSeq.guest=32;w.s.props[0].hit=.125;
+ w.s.players[1].choices=['power'];w.s.players[1].cooldowns.blade=.5;
+ w.s.shots=[{id:999,x:100,y:400,hit:[2,3],damage:50,life:1,weapon:'blade'}];
+ const before=copy(w.checkpoint()),packed=packSnapshot(w.checkpoint(),{presentation:true});
+ assert.deepEqual(copy(packed),copy(presentationPacket(packSnapshot(w.checkpoint(),{authoritative:true}))));
+ assert.deepEqual(copy(w.checkpoint()),before);
+ w.s.players[1].choices.push('ward');w.lastSeq.guest=33;w.s.props[0].hit=0;
+ assert.deepEqual(packed.players[1].choices,['power']);assert.equal(packed.ack.guest,32);
+ assert.equal(unpackSnapshot(packed).props[0].hit,.125,'later simulation cannot corrupt delta baselines');
 });

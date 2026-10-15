@@ -96,7 +96,10 @@ export function forgeState(player,key){
  const chest=(player?.relics||0)>0,weapon=parts[0].met,item=parts[1].met;
  return{parts,weapon,item,chest,blocked,complete,ready:parts.every(p=>p.met)&&chest&&!complete&&!blocked};
 }
-export function canUpgrade(p,key){const def=UPGRADES[key];return !!def&&(!def.unlock||p.effects?.includes(key))&&(p.ranks[key]||0)<def.max&&!p.evolutions?.[key]&&!p.fused?.[key]&&(def.kind!=='weapon'||ownsWeapon(p,key)||weaponLoadout(p).length<WEAPON_LIMIT);}
+export const SMITH_WORK_MAX=3;
+export function normalizeSmithWork(value={},effects){return Object.fromEntries(SMITH_ITEMS.map(key=>[key,(!effects||effects.includes(key))?Math.max(0,Math.min(SMITH_WORK_MAX,Math.floor(Number(value?.[key])||0))):0]));}
+export function upgradeMax(p,key){const def=UPGRADES[key];return (def?.max||0)+(def?.unlock==='smith'&&p?.effects?.includes(key)?normalizeSmithWork(p.smithwork)[key]||0:0);}
+export function canUpgrade(p,key){const def=UPGRADES[key];return !!def&&(!def.unlock||p.effects?.includes(key))&&(p.ranks[key]||0)<upgradeMax(p,key)&&!p.evolutions?.[key]&&!p.fused?.[key]&&(def.kind!=='weapon'||ownsWeapon(p,key)||weaponLoadout(p).length<WEAPON_LIMIT);}
 export function rollChoices(p,random=Math.random){
  const keys=Object.keys(UPGRADES).filter(key=>canUpgrade(p,key));
  for(let i=keys.length-1;i>0;i--){const j=Math.min(i,Math.floor(random()*(i+1)));[keys[i],keys[j]]=[keys[j],keys[i]];}

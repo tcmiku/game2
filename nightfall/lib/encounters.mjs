@@ -1,3 +1,4 @@
+import {stepBossAttack,bossMotion,stepBossHazard,drawBossWarnings,drawBossHazard} from './bosses.mjs';
 import {attackContact,cancelBullet,circleContact} from './counterfire.mjs';
 import {ARENA_W,ARENA_H} from './frontier.mjs';
 import {stepBestiaryAttack,bestiaryMotion,stepBestiaryHazard,drawBestiaryWarnings,drawBestiaryHazard,drawBestiaryBullet} from './bestiary.mjs';
@@ -14,13 +15,14 @@ export function hurtPlayer(w,p,damage){
  p.hp=Math.max(0,p.hp-damage*Math.max(.25,1-(p.ranks?.ward||0)*.08));p.hitCd=.65;w.effect(p.x,p.y,'hit',.25,55);w.events.push('hurt');return true;
 }
 function bullet(w,e,angle,speed=210,damage=12,radius=10){
- w.s.hostile.push({id:w.nextId(),owner:e.id,sourceType:e.type,cancellable:e.type!==4&&e.type!==7,x:e.x,y:e.y-24,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,radius,damage,life:6,kind:e.type===4?'thorn':'orb'});
+ w.s.hostile.push({id:w.nextId(),owner:e.id,sourceType:e.type,cancellable:e.type!==4&&e.type!==7,x:e.x,y:e.y-24,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,radius,damage:damage*(e.damageScale||1),life:6,kind:e.type===4?'thorn':'orb'});
 }
 function hazard(w,e,target,kind,radius,delay){
- w.s.hazards.push({id:w.nextId(),owner:e.id,kind,x:target.x,y:target.y,radius,wait:delay,life:delay+.45,damage:24+6*(e.cycle||1),fired:false});
+ w.s.hazards.push({id:w.nextId(),owner:e.id,kind,x:target.x,y:target.y,radius,wait:delay,life:delay+.45,damage:(24+6*(e.cycle||1))*(e.damageScale||1),fired:false});
 }
 export function stepEnemyAttack(w,e,target,dt){
  if(e.type===7){e.frozen=e.slow=e.stagger=0;return;}
+ if(stepBossAttack(w,e,target,dt))return;
  if(stepBestiaryAttack(w,e,target,dt))return;
  if(e.type!==4&&e.type!==6)return;
  e.skillCd=(e.skillCd??(e.type===4?1.8:1.1))-dt;
@@ -42,6 +44,7 @@ export function stepEnemyAttack(w,e,target,dt){
  }
 }
 export function enemyMotion(e,target,distance){
+ const boss=bossMotion(e,distance);if(boss!==null)return boss;
  const extra=bestiaryMotion(e,distance);if(extra!==null)return extra;
  if(e.type===7)return 1;
  if(e.type===4&&e.skill==='charge')return 0;
@@ -51,7 +54,7 @@ export function enemyMotion(e,target,distance){
 }
 export function stepHostiles(w,dt){
  const s=w.s;
- for(const h of s.hazards){h.wait-=dt;h.life-=dt;if(stepBestiaryHazard(w,h,dt,hurtPlayer))continue;if(h.wait<=0&&!h.fired){h.fired=true;if(h.kind==='roots')for(const p of s.players)if(dist(p,h)<h.radius+12)hurtPlayer(w,p,h.damage);}}
+ for(const h of s.hazards){h.wait-=dt;h.life-=dt;if(stepBossHazard(w,h,dt,hurtPlayer)||stepBestiaryHazard(w,h,dt,hurtPlayer))continue;if(h.wait<=0&&!h.fired){h.fired=true;if(h.kind==='roots')for(const p of s.players)if(dist(p,h)<h.radius+12)hurtPlayer(w,p,h.damage);}}
  for(const b of s.hostile){
   if(b.life<=0)continue;
   const ox=b.x,oy=b.y,tx=b.x+b.vx*dt,ty=b.y+b.vy*dt,contact=attackContact(w,b,ox,oy,tx,ty);b.life-=dt;
@@ -63,9 +66,9 @@ export function stepHostiles(w,dt){
  s.hazards=s.hazards.filter(h=>h.life>0).slice(-48);
 }
 export function drawHostiles(renderer,s,time){
- const c=renderer.ctx;drawBestiaryWarnings(renderer,s,time);
+ const c=renderer.ctx;drawBestiaryWarnings(renderer,s,time);drawBossWarnings(renderer,s,time);
  for(const h of s.hazards||[]){
-  if(drawBestiaryHazard(renderer,h,time))continue;
+  if(drawBossHazard(renderer,h)||drawBestiaryHazard(renderer,h,time))continue;
   c.save();c.lineWidth=3;c.strokeStyle=h.wait>0?'#ffab77':'#ff626b';c.fillStyle=h.wait>0?'#e563392a':'#f9655655';c.beginPath();c.arc(h.x,h.y,h.radius,0,Math.PI*2);c.fill();c.stroke();
   c.lineWidth=2;c.strokeStyle='#ffe0ae';c.beginPath();c.arc(h.x,h.y,h.radius*.82,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.max(0,1-h.wait/1.5));c.stroke();
   for(let j=0;j<6;j++){const a=j*Math.PI/3;c.fillStyle='#ffbd89';c.fillRect(h.x+Math.cos(a)*h.radius-3,h.y+Math.sin(a)*h.radius-3,6,6);}c.restore();

@@ -1,6 +1,7 @@
+import {EXPANDED_TYPES,stepExpandedAttack,expandedMotion,stepExpandedStrafe,stepWeb,drawExpandedWarnings,drawWeb} from './expanded-foes.mjs';
 /** Additional enemy archetypes share the authoritative enemy and hazard pools. */
 import {ARENA_W,ARENA_H} from './frontier.mjs';
-export const ENEMY_TYPES={
+export const ENEMY_TYPES={...EXPANDED_TYPES,
  8:{name:'灰鬃猎犬',hp:28,speed:108,size:20,height:94,xp:2,damage:12,from:18,weight:14},
  9:{name:'孢囊魔',hp:55,speed:44,size:25,height:106,xp:2,damage:9,from:40,weight:11},
  10:{name:'裂骨弩手',hp:38,speed:72,size:21,height:99,xp:2,damage:10,from:65,weight:11},
@@ -15,12 +16,13 @@ export function pickEnemyType(time,random,enemies=[]){
 }
 function poison(w,e,target,delay=.85,life=3.4){
  if(w.s.hazards.length>=48)return;
- w.s.hazards.push({id:w.nextId(),owner:e.id,kind:'spores',x:target.x,y:target.y,radius:e.elite?87:68,wait:delay,delay,life:life+delay,tick:0,damage:8+(e.elite||0)*3});
+ w.s.hazards.push({id:w.nextId(),owner:e.id,kind:'spores',x:target.x,y:target.y,radius:e.elite?87:68,wait:delay,delay,life:life+delay,tick:0,damage:(8+(e.elite||0)*3)*(e.damageScale||1)});
 }
-function bolt(w,e){const a=e.burstAngle;w.s.hostile.push({id:w.nextId(),owner:e.id,sourceType:e.type,cancellable:true,kind:'bolt',x:e.x,y:e.y-20,vx:Math.cos(a)*290,vy:Math.sin(a)*290,radius:7,damage:10+(e.elite||0)*3,life:4});e.attackAt=w.s.time-.08;e.attackAngle=a;}
+function bolt(w,e){const a=e.burstAngle;w.s.hostile.push({id:w.nextId(),owner:e.id,sourceType:e.type,cancellable:true,kind:'bolt',x:e.x,y:e.y-20,vx:Math.cos(a)*290,vy:Math.sin(a)*290,radius:7,damage:(10+(e.elite||0)*3)*(e.damageScale||1),life:4});e.attackAt=w.s.time-.08;e.attackAngle=a;}
 export function stepBestiaryAttack(w,e,target,dt){
  if(!ENEMY_TYPES[e.type])return false;
  if(e.frozen>0||e.stagger>0)return true;
+ if(stepExpandedAttack(w,e,target,dt))return true;
  const distance=dist(e,target);e.skillCd=(e.skillCd??(e.type===11?3.5:e.type===12?1.8:1.3))-dt;
  if(e.type===8){
   if(e.skill==='pounce'){
@@ -46,11 +48,12 @@ export function stepBestiaryAttack(w,e,target,dt){
   }
  }else{
   if(e.skill==='slam'){if(w.s.time>=e.slamAt){e.skill='';e.skillCd=4.2;}}
-  else if(e.skillCd<=0&&distance<230){e.skill='slam';e.slamAt=w.s.time+.9;e.attackAt=w.s.time;e.attackAngle=aim(e,target);if(w.s.hazards.length<48)w.s.hazards.push({id:w.nextId(),owner:e.id,kind:'slam',x:e.x,y:e.y+8,radius:135,wait:.9,delay:.9,life:1.25,damage:22+(e.elite||0)*7,fired:false});}
+  else if(e.skillCd<=0&&distance<230){e.skill='slam';e.slamAt=w.s.time+.9;e.attackAt=w.s.time;e.attackAngle=aim(e,target);if(w.s.hazards.length<48)w.s.hazards.push({id:w.nextId(),owner:e.id,kind:'slam',x:e.x,y:e.y+8,radius:135,wait:.9,delay:.9,life:1.25,damage:(22+(e.elite||0)*7)*(e.damageScale||1),fired:false});}
  }
  return true;
 }
 export function bestiaryMotion(e,distance){
+ const extra=expandedMotion(e,distance);if(extra!==null)return extra;
  if(!ENEMY_TYPES[e.type])return null;
  if(e.skill==='pounce'||e.skill==='slam'||e.skill==='volley'||e.skill==='summon'||e.chargeLeft>0)return 0;
  if(e.type===9)return distance>250?1:distance<155?-.35:0;
@@ -59,11 +62,13 @@ export function bestiaryMotion(e,distance){
  return 1;
 }
 export function stepBestiaryStrafe(e,target,dt){
+ stepExpandedStrafe(e,target,dt);
  if(e.type!==10||e.skill||e.frozen>0||e.stagger>0)return;
  const d=Math.max(1,dist(e,target)),speed=e.speed*.32*Math.sin((e.phase||0)*2+.8);e.x=clamp(e.x-(target.y-e.y)/d*speed*dt,70,ARENA_W-70);e.y=clamp(e.y+(target.x-e.x)/d*speed*dt,70,ARENA_H-70);
 }
 export function bestiaryDeath(w,e){if(e.type===9)poison(w,e,e,.65,2.2);}
 export function stepBestiaryHazard(w,h,dt,hurt){
+ if(stepWeb(w,h,dt,hurt))return true;
  if(h.kind==='spores'){
   if(h.wait<=0){h.tick-=dt;if(h.tick<=0){h.tick=.7;for(const p of w.s.players)if(p.hp>0&&dist(p,h)<h.radius+12)hurt(w,p,h.damage);}}return true;
  }
@@ -73,7 +78,7 @@ export function stepBestiaryHazard(w,h,dt,hurt){
  return false;
 }
 export function drawBestiaryWarnings(renderer,s,time){
- const c=renderer.ctx,tau=Math.PI*2;
+ const c=renderer.ctx,tau=Math.PI*2;drawExpandedWarnings(renderer,s);
  for(const e of s.enemies||[]){
   if(e.type===8&&(e.skill==='pounce'||e.chargeLeft>0)){
    const a=e.chargeAngle??e.attackAngle,ready=e.skill==='pounce';c.save();c.strokeStyle=ready?'#eab17b':'#f6d5a1';c.globalAlpha=ready?.65:.35;c.lineWidth=2;c.beginPath();c.moveTo(e.x,e.y);c.lineTo(e.x+Math.cos(a)*148,e.y+Math.sin(a)*148);c.stroke();
@@ -87,6 +92,7 @@ export function drawBestiaryWarnings(renderer,s,time){
  }
 }
 export function drawBestiaryHazard(renderer,h,time){
+ if(drawWeb(renderer,h))return true;
  if(h.kind!=='spores'&&h.kind!=='slam')return false;
  const c=renderer.ctx,tau=Math.PI*2,ready=h.wait<=0,progress=Math.max(0,Math.min(1,1-h.wait/(h.delay||1)));
  c.save();c.strokeStyle=ready?'#ef826c':'#efba81';c.lineWidth=2;c.fillStyle=ready?'#d878492b':'#d5a47013';c.beginPath();c.arc(h.x,h.y,h.radius,0,tau);c.fill();c.stroke();

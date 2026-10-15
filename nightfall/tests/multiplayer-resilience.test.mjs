@@ -24,7 +24,13 @@ test('a disconnected ally cannot attack or act as a revival helper',()=>{
  for(let i=0;i<180;i++)w.step(.02);assert.equal(p.hp,0);assert.equal(p.reviveProgress,0);assert.equal(w.s.shots.length,0);
 });
 test('fixed authority ticker runs at 50 Hz, tolerates render inactivity, bounds catch-up and clears paused debt',()=>{
- let time=0;const ticker=new HostTicker(dt=>time+=dt,0);assert.equal(ticker.pump(19),0);assert.equal(ticker.pump(20),1);ticker.pump(1000);assert.ok(Math.abs(time-1)<1e-8);assert.equal(ticker.pump(90000),50);assert.ok(Math.abs(time-2)<1e-8);ticker.pump(91000,false);assert.equal(ticker.pump(91020),1);
+ let time=0;const ticker=new HostTicker(dt=>time+=dt,0);
+ for(let now=20;now<=1000;now+=20)assert.equal(ticker.pump(now),1);
+ assert.ok(Math.abs(time-1)<1e-8,'uninterrupted simulation remains 50 Hz');
+ assert.equal(ticker.pump(90000),5,'resuming a suspended tab cannot run 50 combat steps in one task');
+ assert.ok(Math.abs(time-1.1)<1e-8);
+ assert.equal(ticker.pump(90001),0,'discarded debt cannot spill into the next frame');
+ assert.equal(ticker.pump(90020),1);ticker.pump(91000,false);assert.equal(ticker.pump(91020),1);
 });
 test('resume identity is stored per tab and corrupt data cannot become a valid session',()=>{
  const values=new Map(),storage={setItem:(k,v)=>values.set(k,v),getItem:k=>values.get(k),removeItem:k=>values.delete(k)};

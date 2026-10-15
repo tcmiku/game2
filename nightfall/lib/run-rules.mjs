@@ -25,6 +25,7 @@ export function noteDeaths(w){
  const s=w.s;
  for(const p of s.players){
   if(p.hp>0){p.down=false;p.ghost=false;continue;}
+  if(s.coop&&!p.down&&p.choices.length)p.upgradeCredits=(p.upgradeCredits||0)+1;
   p.hp=0;p.choices=[];p.familiars=[];if(!p.ghost)p.moving=false;
   if(!p.down){p.down=true;p.deaths=(p.deaths||0)+1;p.reviveProgress=0;p.ghost=!!s.coop;w.events.push('down');}
   for(const name of ['shots','zones','beams'])s[name]=s[name].filter(entity=>entity.owner!==p.id);

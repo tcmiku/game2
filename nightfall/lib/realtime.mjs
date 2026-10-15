@@ -1,6 +1,9 @@
 import {cleanCursor} from './shared-draft.mjs';
 import {applySnapshotDelta,smallerPacket} from './snapshot-delta.mjs';
 
+// 20 Hz snapshots need more than 16 entries to cover a high-latency round trip.
+// Bounded on both sides, including when acknowledgements are lost.
+export const STATE_HISTORY_LIMIT=64;
 const bounded=(value,min,max)=>Number.isFinite(value)?Math.max(min,Math.min(max,value)):0;
 export function cleanRealtimeInput(value={}){
  value=value&&typeof value==='object'?value:{};
@@ -98,7 +101,7 @@ export class RealtimeRoom{
     if(![1,2].includes(data.value?.snapshot?.wire))return;
     const delta=data.value.snapshot,base=delta.wire===2?p.downHistory?.get(delta.base):undefined;
     let snapshot;try{snapshot=applySnapshotDelta(base,delta,delta.base);}catch{p.resync=true;this.sendInput(this.lastInput||{});return;}
-    p.downlink=snapshot;p.downRevision=data.value.revision??data.seq;p.downHistory??=new Map();p.downHistory.set(p.downRevision,snapshot);while(p.downHistory.size>16)p.downHistory.delete(p.downHistory.keys().next().value);
+    p.downlink=snapshot;p.downRevision=data.value.revision??data.seq;p.downHistory??=new Map();p.downHistory.set(p.downRevision,snapshot);while(p.downHistory.size>STATE_HISTORY_LIMIT)p.downHistory.delete(p.downHistory.keys().next().value);
     p.resync=false;this.lastStateAt=this.now();this.onState({...data.value,snapshot});
    }else if(!this.host&&data.type==='pong'&&Number.isFinite(data.value)){const rtt=this.now()-data.value;if(rtt>=0&&rtt<5000)this.rtt=this.rtt?this.rtt*.8+rtt*.2:rtt;}
   }catch{/* Bad/incomplete packets are disposable; the next snapshot is whole. */}
@@ -112,7 +115,7 @@ export class RealtimeRoom{
    p.pendingStates??=new Map();const revision=(p.stateRevision||0)+1,base=p.stateBase;
    let packet=snapshot;if(base&&snapshot.entities&&base.snapshot.entities){packet=deltas.get(base.snapshot);if(packet)packet=packet.wire===2?{...packet,base:base.revision}:packet;else{packet=smallerPacket(base.snapshot,snapshot,base.revision);deltas.set(base.snapshot,packet);}}
    if(this.send(p,'state',{snapshot:packet,revision,members})){
-    p.stateRevision=revision;p.pendingStates.set(revision,{snapshot,at:this.now()});while(p.pendingStates.size>16)p.pendingStates.delete(p.pendingStates.keys().next().value);
+    p.stateRevision=revision;p.pendingStates.set(revision,{snapshot,at:this.now()});while(p.pendingStates.size>STATE_HISTORY_LIMIT)p.pendingStates.delete(p.pendingStates.keys().next().value);
    }
    p.nextStateAt=this.now()+(p.channel.bufferedAmount>32768?100:48);
   }

@@ -1,6 +1,6 @@
 import {normalizeShrines,shrineBonuses,SHRINES,shrineNear} from './sanctuary.mjs';
 /** Persistent camp progression and spatial interactions, independent of React. */
-import {CAMP_ITEMS,UPGRADES,normalizeEffects} from './equipment.mjs';
+import {CAMP_ITEMS,UPGRADES,normalizeEffects,normalizeSmithWork,SMITH_WORK_MAX,SMITH_ITEMS} from './equipment.mjs';
 export const PROFILE_KEY='nightfall-camp-v1';
 export const BOONS={
  vitality:{name:'生命',detail:'生命上限 +10',max:5,base:100,step:10,unit:'',icon:'heart'},
@@ -9,16 +9,18 @@ export const BOONS={
  haste:{name:'迅捷',detail:'攻击速度 +5%',max:5,base:100,step:5,unit:'%',icon:'haste'},
 };
 const integer=(n,max)=>Math.max(0,Math.min(max,Math.floor(Number(n)||0)));
-export function normalizeBoons(value={}){const boons=Object.fromEntries(Object.entries(BOONS).map(([key,def])=>[key,integer(value?.[key],def.max)]));return value?.sanctuary?{...boons,sanctuary:normalizeShrines(value.sanctuary)}:boons;}
-export function expeditionBoons(profile){return{...normalizeBoons(profile.boons),sanctuary:normalizeShrines(profile.shrines)};}
-export function newProfile(){return{version:1,embers:60,boons:normalizeBoons(),shrines:normalizeShrines(),residents:['keeper','herbalist'],unlocks:[],effects:[],settled:[],runs:0};}
+export function normalizeBoons(value={}){const boons=Object.fromEntries(Object.entries(BOONS).map(([key,def])=>[key,integer(value?.[key],def.max)]));return {...boons,...(value?.sanctuary?{sanctuary:normalizeShrines(value.sanctuary)}:{}),...(value?.smithwork?{smithwork:normalizeSmithWork(value.smithwork)}:{})};}
+export function expeditionBoons(profile){return{...normalizeBoons(profile.boons),sanctuary:normalizeShrines(profile.shrines),smithwork:normalizeSmithWork(profile.smithwork,profile.effects)};}
+export function newProfile(){return{version:1,embers:60,boons:normalizeBoons(),shrines:normalizeShrines(),residents:['keeper','herbalist'],unlocks:[],effects:[],smithwork:normalizeSmithWork(),settled:[],runs:0};}
 export function normalizeProfile(value){
  const fallback=newProfile();if(!value||typeof value!=='object')return fallback;
- return{version:1,embers:value.embers===undefined?fallback.embers:integer(value.embers,1e7),boons:normalizeBoons(value.boons),shrines:normalizeShrines(value.shrines),residents:['keeper','herbalist',...new Set((Array.isArray(value.residents)?value.residents:[]).filter(k=>k!=='herbalist'&&CAMP_SITES.some(s=>s.resident===k)))],unlocks:[...new Set((Array.isArray(value.unlocks)?value.unlocks:[]).filter(k=>CAMP_SITES.some(s=>s.id===k)))],effects:normalizeEffects(value.effects),settled:(Array.isArray(value.settled)?value.settled:[]).filter(k=>typeof k==='string').slice(-30),runs:integer(value.runs,1e7)};
+ return{version:1,embers:value.embers===undefined?fallback.embers:integer(value.embers,1e7),boons:normalizeBoons(value.boons),shrines:normalizeShrines(value.shrines),residents:['keeper','herbalist',...new Set((Array.isArray(value.residents)?value.residents:[]).filter(k=>k!=='herbalist'&&CAMP_SITES.some(s=>s.resident===k)))],unlocks:[...new Set((Array.isArray(value.unlocks)?value.unlocks:[]).filter(k=>CAMP_SITES.some(s=>s.id===k)))],effects:normalizeEffects(value.effects),smithwork:normalizeSmithWork(value.smithwork,normalizeEffects(value.effects)),settled:(Array.isArray(value.settled)?value.settled:[]).filter(k=>typeof k==='string').slice(-30),runs:integer(value.runs,1e7)};
 }
 export function rescueSmith(profile){const p=normalizeProfile(profile);if(p.residents.includes('smith'))return p;return{...p,embers:p.embers+20,residents:[...p.residents,'smith'],unlocks:[...new Set([...p.unlocks,'forge'])]};}
 export function smithOnDeath(profile,player){return !profile.residents.includes('smith')&&(player?.deaths>0||player?.hp<=0)?rescueSmith(profile):profile;}
 export function unlockEffect(profile,key){const p=normalizeProfile(profile),def=UPGRADES[key];if(!def?.unlock||!p.residents.includes(def.unlock)||!CAMP_ITEMS.includes(key)||p.effects.includes(key)||p.embers<def.cost)return null;return{...p,embers:p.embers-def.cost,effects:[...p.effects,key]};}
+export function smithWorkCost(profile,key){if(!SMITH_ITEMS.includes(key)||!profile.residents?.includes('smith')||!profile.effects?.includes(key))return null;const rank=normalizeSmithWork(profile.smithwork)[key];return rank>=SMITH_WORK_MAX?null:UPGRADES[key].cost+rank*45;}
+export function strengthenEffect(profile,key){const p=normalizeProfile(profile),cost=smithWorkCost(p,key);if(cost===null||p.embers<cost)return null;return{...p,embers:p.embers-cost,smithwork:{...p.smithwork,[key]:p.smithwork[key]+1}};}
 export function recruitScholar(profile,run){if(profile.residents.includes('scholar')||!(run?.bossKills>0))return profile;const p=normalizeProfile(profile);return{...p,residents:[...p.residents,'scholar'],unlocks:[...new Set([...p.unlocks,'archive'])]};}
 export function boonCost(profile,key){const def=BOONS[key];return !def||profile.boons[key]>=def.max?null:20+profile.boons[key]*15;}
 export function strengthen(profile,key){

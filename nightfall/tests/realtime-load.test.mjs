@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {RealtimeRoom} from '../lib/realtime.mjs';
+import {RealtimeRoom,STATE_HISTORY_LIMIT} from '../lib/realtime.mjs';
 import {World} from '../lib/game.mjs';
 import {packSnapshot,presentationPacket} from '../lib/network.mjs';
 
@@ -24,7 +24,7 @@ test('four-player dense snapshots converge under latency, packet loss and reorde
  }
  for(let i=0;i<8;i++){now+=50;flush();for(const g of rooms.slice(1))g.sendInput({});}now+=500;flush();
  for(const s of states){assert.equal(s.frame,w.s.frame);assert.equal(s.entities.enemies.rows.length,200);assert.equal(s.entities.gems.rows.length,210);}
- for(const room of rooms)for(const p of room.peers.values()){assert.ok((p.pendingStates?.size||0)<=16);assert.ok((p.downHistory?.size||0)<=16);assert.ok(p.chunks.size<=6);}
+ for(const room of rooms)for(const p of room.peers.values()){assert.ok((p.pendingStates?.size||0)<=STATE_HISTORY_LIMIT);assert.ok((p.downHistory?.size||0)<=STATE_HISTORY_LIMIT);assert.ok(p.chunks.size<=6);}
  assert.ok(bytes/fullBytes<.65,`${bytes}/${fullBytes}`);encode.sort((a,b)=>a-b);
  console.log(`4P loss/reorder: payload -${Math.round((1-bytes/fullBytes)*100)}%, encode p95 ${encode[Math.floor(encode.length*.95)].toFixed(2)}ms; 220 enemies, 180 shots, 260 gems`);
 });

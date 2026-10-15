@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useState,type CSSProperties,type PointerEvent} from 'react';
 import {ArrowUpRight,BookOpen,Check,Expand,Feather,Heart,Hourglass,Layers,Magnet,MousePointer2,Shield,Sparkles,Star,Timer,Wind,Zap} from 'lucide-react';
-import {UPGRADES,MEND} from '../../lib/equipment.mjs';
+import {UPGRADES,MEND,upgradeMax} from '../../lib/equipment.mjs';
 import {wantedUpgrade} from '../../lib/run-rules.mjs';
 import {DRAFT_SECONDS} from '../../lib/shared-draft.mjs';
 import {playerStyle} from '../../lib/player-style.mjs';
@@ -57,7 +57,7 @@ export function SharedUpgradePanel({state,playerId,members,favorites,onChoose,on
        <div className="draft-card-top"><span><i/>{owner?'已领取':card.key==='mend'?'月露补给':rank?'精进兵装':u.kind==='weapon'?'新武器':'新道具'}{favorite&&<Star className="draft-favorite-star" size={11} fill="currentColor" aria-hidden="true"/>}</span><kbd aria-label={`快捷键 ${shortcuts[i]}`}>{shortcuts[i]}</kbd></div>
        <div className="draft-card-main">
         <div className="draft-weapon-seal" aria-hidden="true">{u.kind==='weapon'?<WeaponIcon id={card.key} size={48}/>:<ItemIcon size={28} strokeWidth={1.4}/>}</div>
-        <div className="draft-weapon-name"><h3>{u.name}</h3><span className="draft-rank">{card.key==='mend'?'恢复生命':owner?`Lv.${shownRank} · 已领取`:rank?`Lv.${rank} → ${rank+1}`:'初次获得'}</span>{card.key!=='mend'&&<div className="draft-rank-pips" aria-label={`${owner?'当前':'领取后'}等级 ${owner?shownRank:rank+1}，最高 ${u.max} 级`}>{Array.from({length:u.max},(_,j)=><i key={j} className={j<(owner?shownRank:rank)?'lit':!owner&&j===rank?'next':''}/>)}</div>}</div>
+        <div className="draft-weapon-name"><h3>{u.name}</h3><span className="draft-rank">{card.key==='mend'?'恢复生命':owner?`Lv.${shownRank} · 已领取`:rank?`Lv.${rank} → ${rank+1}`:'初次获得'}</span>{card.key!=='mend'&&<div className="draft-rank-pips" aria-label={`${owner?'当前':'领取后'}等级 ${owner?shownRank:rank+1}，最高 ${upgradeMax(owner||me,card.key)} 级`}>{Array.from({length:upgradeMax(owner||me,card.key)},(_,j)=><i key={j} className={j<(owner?shownRank:rank)?'lit':!owner&&j===rank?'next':''}/>)}</div>}</div>
        </div>
        <p>{u.kind==='weapon'&&(owner||!rank)?u.sub:u.detail}</p>
        <div className="draft-card-footer">{owner?<span className="draft-card-owner"><Check size={13}/><span>P{owner.index+1} · {owner.name}</span><b>已领取</b></span>:<><span className="draft-pick-label">{pending===card.key?'确认中…':!waiting?'等待队友':!eligible?'条件未满足':'择取兵装'}</span>{!disabled&&<ArrowUpRight size={15}/>}</>}</div>

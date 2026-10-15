@@ -1,7 +1,13 @@
 /** Per-step attack geometry. Never serialized: the host rebuilds it from live attacks. */
 export function addWeaponGuard(w,p,weapon,shape){
  if(!p||p.hp<=0||p.connected===false)return;
- (w.guards||=[]).push({owner:p.id,weapon,...shape});
+ const guard={owner:p.id,weapon,...shape};guard.bounds=guardBounds(guard);(w.guards||=[]).push(guard);
+}
+// These shapes are rebuilt each simulation step, so their conservative bounds
+// can be shared by every hostile bullet without changing exact collision order.
+function guardBounds(g){
+ const tx=g.kind==='line'?g.tx:g.x,ty=g.kind==='line'?g.ty:g.y;
+ return {left:Math.min(g.x,tx)-g.radius,right:Math.max(g.x,tx)+g.radius,top:Math.min(g.y,ty)-g.radius,bottom:Math.max(g.y,ty)+g.radius};
 }
 export function segmentDistance(x,y,ax,ay,bx,by){const dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy||1)));return Math.hypot(x-ax-dx*t,y-ay-dy*t);}
 export function circleContact(ax,ay,bx,by,x,y,r){
@@ -23,8 +29,11 @@ export function canCancelBullet(w,b){
 /** Find the first collision along the hostile sweep, before testing player hits. */
 export function attackContact(w,b,ax,ay,bx,by){
  if(!canCancelBullet(w,b))return null;
+ const pad=b.radius||0,left=Math.min(ax,bx)-pad,right=Math.max(ax,bx)+pad,top=Math.min(ay,by)-pad,bottom=Math.max(ay,by)+pad;
  let result=null,best=Infinity;const steps=Math.max(1,Math.ceil(Math.hypot(bx-ax,by-ay)/3));
  for(const g of w.guards||[]){
+  const bounds=g.bounds||guardBounds(g);
+  if(right<bounds.left||left>bounds.right||bottom<bounds.top||top>bounds.bottom)continue;
   const p=w.s.players.find(p=>p.id===g.owner);if(!p||p.hp<=0||p.connected===false)continue;
   let t=Infinity;
   if(!g.kind||g.kind==='circle')t=circleContact(ax,ay,bx,by,g.x,g.y,g.radius+(b.radius||0));

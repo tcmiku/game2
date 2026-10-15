@@ -5,7 +5,7 @@ import {canUpgrade,UPGRADES} from '../lib/equipment.mjs';
 import {packSnapshot,unpackSnapshot,RemoteView} from '../lib/network.mjs';
 import {cleanCursor} from '../lib/shared-draft.mjs';
 const copy=value=>JSON.parse(JSON.stringify(value));
-function party(count=4){const w=new World(Array.from({length:count},(_,i)=>({id:`p${i}`})),()=>.4);w.spawnCd=w.eliteAt=1e9;for(const p of w.s.players)w.xp(p,6);w.step(.02);return w;}
+function party(count=4){const w=new World(Array.from({length:count},(_,i)=>({id:`p${i}`})),()=>.4);w.spawnCd=w.eliteAt=1e9;w.xp(w.s.players[0],w.s.teamXp.nextXp);w.step(.02);return w;}
 
 test('2–4 players receive one shared pool with three cards per living player',()=>{
  for(const count of [2,3,4]){
@@ -29,7 +29,7 @@ test('shared cards enforce unlocks and full weapon slots; exhausted pools provid
  assert.equal(w.upgrade(a.id,'mend',w.s.draft.id),true);assert.equal(a.choices.length,0);
 });
 test('queued levels wait for the team; late input from an older round cannot spend a new choice',()=>{
- const w=party(2),d=w.s.draft;for(const p of w.s.players)p.xp=100;
+ const w=party(2),d=w.s.draft;w.s.teamXp.xp=100;
  w.input('p0',{choice:w.s.players[0].choices[0],seq:100,draftId:d.id});assert.equal(w.s.players[0].choices.length,0);
  w.upgrade('p1',w.s.players[1].choices[0],d.id);w.step(.02);assert.notEqual(w.s.draft.id,d.id);
  const next=copy(w.s.players[0].ranks);w.input('p0',{choice:w.s.players[0].choices[0],seq:99,draftId:w.s.draft.id});assert.deepEqual(w.s.players[0].ranks,next);

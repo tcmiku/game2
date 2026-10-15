@@ -13,19 +13,25 @@ export function syncDelay(start,now,lobby=false,failures=0,host=false,rtt=0,dire
 }
 const groups=['enemies','shots','gems','effects','zones','beams','impacts','chests','hostile','hazards','props'];
 const omitted=new Set(['hit','damage','pierce','orbitCd','cooldowns','tick','knockX','knockY']);
+const physics=new Set([...omitted,'speed','skillCd','burstWait','summoner','chargeSpeed']);
+const playerPhysics=new Set(['cooldowns','cooldown','novaCd','stormCd','pulseCd']);
 function round(value){
  if(typeof value==='number')return Math.round(value*1000)/1000;
  if(Array.isArray(value))return value.map(round);
- if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([key,v])=>[key,round(v)]));
+ if(value&&typeof value==='object'){const out={};for(const key of Object.keys(value))out[key]=round(value[key]);return out;}
  return value;
 }
 /** Column names travel once per collection, rather than on every entity. */
-export function packSnapshot(state,{authoritative=false}={}){
+export function packSnapshot(state,{authoritative=false,presentation=false}={}){
  if(!state)return undefined;
  const packet={wire:1,entities:{}};
- for(const key of Object.keys(state))if(!groups.includes(key)&&!key.startsWith('_'))packet[key]=round(state[key]);
+ for(const key of Object.keys(state))if(!groups.includes(key)&&!key.startsWith('_')&&(!presentation||!['engine','players'].includes(key)))packet[key]=round(state[key]);
+ if(presentation){
+  packet.ack=round(state.engine?.lastSeq||{});
+  packet.players=(state.players||[]).map(p=>{const out={};for(const key of Object.keys(p))if(!playerPhysics.has(key))out[key]=round(p[key]);return out;});
+ }
  for(const name of groups){
-  const items=state[name]||[],columns=new Set();for(const item of items)for(const key of Object.keys(item))if(authoritative||!omitted.has(key)||key==='hit'&&name==='enemies')columns.add(key);
+  const items=state[name]||[],columns=new Set();for(const item of items)for(const key of Object.keys(item))if(presentation?(!physics.has(key)||key==='hit'&&['enemies','props'].includes(name)):(authoritative||!omitted.has(key)||key==='hit'&&name==='enemies'))columns.add(key);
   const keys=[...columns],rows=[];
   for(const item of items){const row=[];for(const key of keys)row.push(round(item[key]));while(row.length&&row.at(-1)===undefined)row.pop();rows.push(row);}packet.entities[name]={keys,rows};
  }
@@ -37,8 +43,7 @@ export function presentationPacket(packet){
  const view={wire:1,entities:{}};
  for(const [key,value] of Object.entries(packet))if(!key.startsWith('_')&&!['entities','engine','players'].includes(key))view[key]=value;
  view.ack=packet.engine?.lastSeq||{};
- view.players=(packet.players||[]).map(p=>Object.fromEntries(Object.entries(p).filter(([key])=>!['cooldowns','cooldown','novaCd','stormCd','pulseCd'].includes(key))));
- const physics=new Set([...omitted,'speed','skillCd','burstWait','summoner','chargeSpeed']);
+ view.players=(packet.players||[]).map(p=>Object.fromEntries(Object.entries(p).filter(([key])=>!playerPhysics.has(key))));
  for(const [name,{keys,rows}] of Object.entries(packet.entities)){
   const columns=keys.map((key,index)=>[key,index]).filter(([key])=>!physics.has(key)||key==='hit'&&['enemies','props'].includes(name));
   view.entities[name]={keys:columns.map(([key])=>key),rows:rows.map(row=>{const out=columns.map(([,index])=>row[index]);while(out.length&&out.at(-1)==null)out.pop();return out;})};
@@ -47,7 +52,7 @@ export function presentationPacket(packet){
 export function unpackSnapshot(packet){
  if(packet?.wire!==1)return packet;
  const {wire,entities,...state}=packet;
- for(const name of groups){const {keys,rows}=entities[name]||{keys:[],rows:[]};state[name]=rows.map(row=>Object.fromEntries(row.flatMap((value,i)=>value==null?[]:[[keys[i],value]])));}
+ for(const name of groups){const {keys,rows}=entities[name]||{keys:[],rows:[]};state[name]=rows.map(row=>{const entity={};for(let i=0;i<row.length;i++)if(row[i]!=null)entity[keys[i]]=row[i];return entity;});}
  return state;
 }
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
@@ -70,7 +75,7 @@ export class RemoteView{
   const target={x:me.x,y:me.y},ack=me.inputAt+me.inputAge;
   // Replay only recent, unacknowledged local movement. The timestamp belongs
   // to the guest's clock; inputAge is elapsed simulation time on the host.
-  if((me.hp>0||me.ghost)&&!state.upgradePaused&&state.status==='playing'&&Number.isFinite(ack))for(const h of this.history){const dt=Math.max(0,h.to-Math.max(h.from,ack,now-.3));target.x+=h.x*me.speed*(me.ghost?.85:1)*dt;target.y+=h.y*me.speed*(me.ghost?.85:1)*dt;}
+  if((me.hp>0||me.ghost)&&!state.upgradePaused&&state.status==='playing'&&Number.isFinite(ack))for(const h of this.history){const dt=Math.max(0,h.to-Math.max(h.from,ack,now-.3));target.x+=h.x*me.speed*(me.ghost?.85:me.snared?.55:1)*dt;target.y+=h.y*me.speed*(me.ghost?.85:me.snared?.55:1)*dt;}
   target.x=clamp(target.x,100,(this.latest?.width||ARENA_W)-100);target.y=clamp(target.y,100,(this.latest?.height||ARENA_H)-100);if(me.hp>0)collideDestructibles(target,state.props);this.target=target;
   if(Math.hypot(target.x-this.local.x,target.y-this.local.y)>180)this.local={...target};
  }
@@ -90,7 +95,7 @@ export class RemoteView{
   const {x,y}=direction(input),moving=!!(fresh&&s.status==='playing'&&!s.upgradePaused&&(me?.hp>0||me?.ghost));
   if(moving){
    this.history.push({from:now-dt,to:now,x,y});this.history=this.history.filter(h=>h.to>now-1);
-   const dx=x*me.speed*(me.ghost?.85:1)*dt,dy=y*me.speed*(me.ghost?.85:1)*dt;this.local.x+=dx;this.local.y+=dy;if(this.target){this.target.x=clamp(this.target.x+dx,100,(this.latest?.width||ARENA_W)-100);this.target.y=clamp(this.target.y+dy,100,(this.latest?.height||ARENA_H)-100);}
+   const dx=x*me.speed*(me.ghost?.85:me.snared?.55:1)*dt,dy=y*me.speed*(me.ghost?.85:me.snared?.55:1)*dt;this.local.x+=dx;this.local.y+=dy;if(this.target){this.target.x=clamp(this.target.x+dx,100,(this.latest?.width||ARENA_W)-100);this.target.y=clamp(this.target.y+dy,100,(this.latest?.height||ARENA_H)-100);}
   }
   if(this.local&&this.target){const blend=1-Math.exp(-12*dt);this.local.x=clamp(this.local.x+(this.target.x-this.local.x)*blend,100,(this.latest?.width||ARENA_W)-100);this.local.y=clamp(this.local.y+(this.target.y-this.local.y)*blend,100,(this.latest?.height||ARENA_H)-100);}
   if(me?.hp>0&&this.local)collideDestructibles(this.local,s.props);

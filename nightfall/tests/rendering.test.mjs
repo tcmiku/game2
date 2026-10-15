@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World,Renderer} from '../lib/game.mjs';
+import {BOSS_ORDER} from '../lib/bosses.mjs';
 import {CampRenderer} from '../lib/camp-renderer.mjs';
 import {createCamp,newProfile} from '../lib/camp.mjs';
 import {WEAPONS,RECIPES} from '../lib/equipment.mjs';
@@ -28,6 +29,10 @@ test('all weapons and artifacts draw finite Canvas geometry through repeated att
   w.spawnCd=1e5;w.s.enemies=[{id:900,x:p.x+120,y:p.y,type:4,hp:1e8,maxHp:1e8,speed:0,size:50,hit:0,slow:0,orbitCd:0,phase:0}];
   for(let i=0;i<200;i++){p.hp=p.maxHp;p.choices=[];w.step(.05);assert.doesNotThrow(()=>r.render(w.s,'p',.05),key);}
  }
+});
+test('every boss and added enemy draws all attack phases at normal and reduced motion',()=>{
+ const r=setup();for(const reduced of [false,true])for(const kind of BOSS_ORDER){r.feedback.reducedMotion=reduced;const w=new World(undefined,()=>.5),p=w.s.players[0];p.ranks={};p.hp=p.maxHp=1e8;w.spawnCd=w.eliteAt=w.s.nextBossAt=1e9;w.s.props=[];const boss=w.spawn(4);boss.bossKind=kind;boss.x=p.x+320;boss.y=p.y;boss.speed=0;boss.skillCd=0;for(const type of [13,14,15]){const e=w.spawn(type,2);e.x=p.x+200;e.y=p.y+150;e.skillCd=0;}
+ for(let i=0;i<300;i++){w.step(.05);assert.doesNotThrow(()=>r.render(w.s,p.id,.05),kind);}}
 });
 test('camp and sakura courtyard render at normal and reduced motion, including newly awakened shrines',()=>{
  const r=setup(),cr=new CampRenderer(r),camp=createCamp(),profile=newProfile();
@@ -62,4 +67,14 @@ test('a transient frame error cannot cancel later frames and unmount cancels the
  let pending,called=0,cancelled=0,reported=0;
  const stop=startFrameLoop(()=>{called++;if(called===1)throw new Error('one failed drawing');},{request:fn=>(pending=fn,called+1),cancel:()=>cancelled++,report:()=>reported++});
  pending(100);assert.equal(reported,1);pending(116);assert.equal(called,2);stop();assert.equal(cancelled,1);pending(132);assert.equal(called,2);
+});
+
+test('render position cache releases despawned enemies throughout a long multiplayer run',()=>{
+ const r=setup(),w=new World([{id:'a'},{id:'b'}]);w.s.props=[];
+ for(let i=0;i<300;i++){
+  w.s.enemies=[{id:10000+i,x:1300,y:800,type:1,hp:100,size:20,phase:0}];
+  r.render(w.s,'a',.02,false,true);
+  assert.equal(r.positions.size,3,'cache is bounded by current actors, not total kills');
+ }
+ w.s.enemies=[];r.render(w.s,'a',.02,false,true);assert.equal(r.positions.size,2);
 });

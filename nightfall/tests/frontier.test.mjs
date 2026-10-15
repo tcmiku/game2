@@ -6,7 +6,7 @@ import {newProfile,normalizeProfile,recruitScholar,unlockEffect} from '../lib/ca
 import {experienceAppearance,createDestructibles} from '../lib/frontier.mjs';
 import {hurtPlayer} from '../lib/encounters.mjs';
 import {packSnapshot,unpackSnapshot,RemoteView} from '../lib/network.mjs';
-function scene(weapon='aegis',coop=false){const w=new World(coop?[{id:'p',weapon},{id:'q',weapon:'blade'}]:[{id:'p',weapon}],()=>.5);w.spawnCd=w.eliteAt=1e9;w.s.props=[];for(const p of w.s.players)p.nextXp=1e9;return{w,p:w.s.players[0]};}
+function scene(weapon='aegis',coop=false){const w=new World(coop?[{id:'p',weapon},{id:'q',weapon:'blade'}]:[{id:'p',weapon}],()=>.5);w.spawnCd=w.eliteAt=1e9;w.s.props=[];for(const p of w.s.players)p.nextXp=1e9;if(w.s.teamXp)w.s.teamXp.nextXp=1e9;return{w,p:w.s.players[0]};}
 const foe=p=>({id:900,x:p.x+180,y:p.y,type:1,hp:10000,maxHp:10000,size:20,speed:0,hit:0,slow:0,orbitCd:0});
 const bullet=(p,id=901,x=60)=>({id,x:p.x+x,y:p.y,vx:0,vy:0,radius:10,life:4,damage:15,kind:'orb'});
 test('mirror shield erases a nearby projectile, retaliates with attributed damage, and has a vulnerable cooldown',()=>{
@@ -51,7 +51,7 @@ test('legacy saves gain the herbalist, scholar recruitment is idempotent, and ea
 });
 test('new passives affect actual regeneration, received damage, shared experience and healing pickups',()=>{
  const {w,p}=scene('blade',true),q=w.s.players[1];p.hp=40;p.ranks.renewal=2;p.ranks.ward=3;p.ranks.wisdom=2;p.ranks.preservation=2;
- w.step(.05);assert.ok(p.hp>40);const before=p.hp;hurtPlayer(w,p,10);assert.ok(Math.abs(p.hp-(before-7.6))<1e-6);w.xp(p,10);w.xp(q,10);assert.equal(p.xp,13);assert.equal(q.xp,10);
+ w.step(.05);assert.ok(p.hp>40);const before=p.hp;hurtPlayer(w,p,10);assert.ok(Math.abs(p.hp-(before-7.6))<1e-6);w.xp(p,10);assert.equal(p.xp,13);assert.equal(q.xp,13);assert.equal(w.s.teamXp.xp,13);
  p.hp=20;p.hitCd=0;p.ranks.renewal=0;w.s.gems=[{id:400,x:p.x,y:p.y,v:1,type:'heart'}];w.step(.05);assert.equal(p.hp,60);p.hp=20;p.choices=['mend'];w.upgrade('p','mend');assert.equal(p.hp,68);
  assert.equal(canUpgrade({...p,effects:[]},'wisdom'),false);p.effects=['wisdom'];p.ranks.wisdom=0;assert.equal(canUpgrade(p,'wisdom'),true);
 });
