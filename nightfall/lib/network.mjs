@@ -2,8 +2,14 @@ import {ARENA_W,ARENA_H,collideDestructibles} from './frontier.mjs';
 // Keep requests serial and schedule from their start, so latency isn't added to
 // the polling interval. Lobby traffic stays slow; failures back off separately.
 export const SYNC_MS=50,LOBBY_SYNC_MS=650;
-export function syncDelay(start,now,lobby=false,failures=0,host=false,rtt=0){
- return Math.max(failures?Math.min(1500,150*failures):0,(lobby?LOBBY_SYNC_MS:host?Math.min(160,80+Math.max(0,rtt-100)*.2):SYNC_MS)-(now-start));
+/** Display state may switch transports, but must never move backwards. A new
+ * host is allowed to restore the last persisted authoritative checkpoint. */
+export function acceptSnapshot(current,incoming,authority=false){
+ if(!incoming?.players)return false;
+ return authority||!current||current.runId!==incoming.runId||((incoming.frame??0)>=(current.frame??0)&&incoming.time>=current.time);
+}
+export function syncDelay(start,now,lobby=false,failures=0,host=false,rtt=0,direct=false){
+ return Math.max(failures?Math.min(1500,150*failures):0,(lobby?LOBBY_SYNC_MS:direct?650:host?Math.min(160,80+Math.max(0,rtt-100)*.2):SYNC_MS)-(now-start));
 }
 const groups=['enemies','shots','gems','effects','zones','beams','impacts','chests','hostile','hazards','props'];
 const omitted=new Set(['hit','damage','pierce','orbitCd','cooldowns','tick','knockX','knockY']);

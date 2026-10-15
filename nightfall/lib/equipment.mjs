@@ -1,6 +1,6 @@
 /** Equipment definitions shared by the host simulation and the interface. */
 export const WEAPON_LIMIT = 6;
-export const WEAPON_ATLAS_COLUMNS = 6, WEAPON_ATLAS_ROWS = 8;
+export const WEAPON_ATLAS_COLUMNS = 6, WEAPON_ATLAS_ROWS = 9;
 const weapon = (name, sub, detail, color, sprite) => ({name,sub,detail,color,sprite,icon:'blade',kind:'weapon',max:5});
 export const UPGRADES = {
  blade: weapon('月刃','扇形飞刃 · 连续穿透','飞刃数量 +1','#d6dec7',16),
@@ -59,6 +59,10 @@ export const weaponCooldown=(p,seconds)=>seconds/Math.max(.1,p.rate)*(1-(p.ranks
 export const WEAPONS = Object.keys(UPGRADES).filter(key=>UPGRADES[key].kind==='weapon');
 const union = (name, primary, secondary, sub, detail, color, sprite) => ({name,weapon:primary,weapons:[{key:primary,level:3},{key:secondary,level:3}],sub,detail,color,sprite});
 export const ARTIFACTS = {
+ cataclysm:{name:'星旋猫团',weapon:'spincat',item:'haste',weaponLevel:5,itemLevel:1,sub:'群猫巡星',detail:'环形猫群 · 双程回旋穿透',color:'#bce1cf',sprite:64},
+ polarChoir:{name:'极夜合唱',weapon:'gugu',item:'area',weaponLevel:5,itemLevel:1,sub:'极光安魂曲',detail:'五重冰音波 · 短暂冻结小怪',color:'#b1e1f0',sprite:65},
+ dreamcavalry:{name:'星轨远征',weapon:'manbo',item:'speed',weaponLevel:5,itemLevel:1,sub:'踏星而行',detail:'多列骑兵冲锋 · 留下灼星轨迹',color:'#dfc5f1',sprite:66},
+ goldenbanquet:{name:'黄金滑稽宴',weapon:'bananacat',item:'linger',weaponLevel:5,itemLevel:1,sub:'请君入席',detail:'三连落猫 · 金色果皮连锁引爆',color:'#f0d58b',sprite:67},
  dijiang:union('帝江号轨道炮','zmd','pelican','天穹裁决','锁定蓄能 · 轨道贯击 · 大范围清场','#f2d986',59),
  moonward:{name:'月轮圣盾',weapon:'aegis',item:'ward',weaponLevel:5,itemLevel:1,sub:'澄净之月',detail:'扩大净化范围 · 持续折光反击',color:'#e7d7a6',sprite:47},
  eclipse:{name:'蚀月',weapon:'blade',item:'power',weaponLevel:5,itemLevel:1,sub:'追猎月刃',detail:'追踪 · 穿透 5 次 · 伤害 ×1.8',color:'#e6ce91',sprite:8},

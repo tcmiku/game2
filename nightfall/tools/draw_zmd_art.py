@@ -27,9 +27,9 @@ def icon(ship=False):
         d.ellipse((21,51,51,61),outline=gold,width=2);d.line([(15,56),(57,56)],fill='#91ccd7',width=1)
     return im
 def generate():
-    out=ROOT/'public/art';old=Image.open(out/'pixel-weapons.png').convert('RGBA');atlas=Image.new('RGBA',(384,512));atlas.paste(old,(0,0))
+    out=ROOT/'public/art';old=Image.open(out/'pixel-weapons.png').convert('RGBA');atlas=Image.new('RGBA',(384,max(512,old.height)));atlas.paste(old,(0,0))
     preview=Image.new('RGB',(512,256),'#14212c')
     for n in range(2):
         im=icon(bool(n));idx=58+n-16;atlas.paste(im,(idx%6*64,idx//6*64));large=im.resize((256,256),Image.Resampling.NEAREST);preview.paste(large,(n*256,0),large)
-    atlas.save(out/'pixel-weapons.png',optimize=True);atlas.resize((768,1024),Image.Resampling.NEAREST).save(out/'pixel-weapons-preview.png');preview.save(out/'pixel-zmd-preview.png')
+    atlas.save(out/'pixel-weapons.png',optimize=True);atlas.resize((768,atlas.height*2),Image.Resampling.NEAREST).save(out/'pixel-weapons-preview.png');preview.save(out/'pixel-zmd-preview.png')
 if __name__=='__main__':generate()

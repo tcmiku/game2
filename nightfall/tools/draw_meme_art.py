@@ -50,8 +50,8 @@ def creature(kind):
     return im.resize((64,64),Image.Resampling.NEAREST)
 def generate():
     path=ROOT/'public/art/pixel-weapons.png';atlas=Image.open(path).convert('RGBA')
-    assert atlas.size==(384,512),'Expected current eight-row weapon atlas'
+    assert atlas.width==384 and atlas.height>=512,'Expected current weapon atlas'
     for i,kind in enumerate(['spincat','gugu','manbo','bananacat']):atlas.paste(creature(kind),((44+i)%6*64,(44+i)//6*64))
     atlas.save(path,optimize=True)
-    atlas.resize((768,1024),Image.Resampling.NEAREST).save(ROOT/'public/art/pixel-weapons-preview.png')
+    atlas.resize((768,atlas.height*2),Image.Resampling.NEAREST).save(ROOT/'public/art/pixel-weapons-preview.png')
 if __name__=='__main__':generate()

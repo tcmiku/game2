@@ -1,4 +1,5 @@
 import {ARENA_W,ARENA_H} from './frontier.mjs';
+import {updateDraft,DRAFT_SECONDS} from './shared-draft.mjs';
 /** Reward and cooperative life-cycle rules, calculated only by the host. */
 import {ENEMY_TYPES} from './bestiary.mjs';
 import {WEAPONS,canUpgrade,recipeParts,ARTIFACTS,forgeState} from './equipment.mjs';
@@ -42,10 +43,12 @@ export function stepGhosts(w,dt){
 }
 /** Choice timeout uses real step durations even while combat time is held. */
 export function holdForUpgrades(w,dt){
+ updateDraft(w);
  const s=w.s,choosing=s.players.filter(p=>p.hp>0&&p.choices.length);
  s.upgradePaused=!s.reaperSpawned&&choosing.length>0;
  if(!s.upgradePaused)return false;
  for(const e of s.enemies)e.moving=false;
- if(s.coop)for(const p of choosing){p.choiceTime+=dt;if(p.choiceTime>=14-1e-6)w.upgrade(p.id,p.choices[0]);}
+ if(s.draft)s.draft.elapsed+=dt;
+ if(s.coop)for(const p of choosing){p.choiceTime+=dt;if(p.choiceTime>=DRAFT_SECONDS-1e-6)w.upgrade(p.id,p.choices[0]);}
  return true;
 }

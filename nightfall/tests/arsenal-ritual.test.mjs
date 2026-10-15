@@ -42,6 +42,6 @@ test('four players using six new weapon types keep entity pools and authoritativ
  let largest=0;for(let i=0;i<1200;i++){w.step(.05);if(i%20===0)largest=Math.max(largest,JSON.stringify(packSnapshot(w.checkpoint(),{authoritative:true})).length);}
  assert.ok(w.s.kills>50);assert.ok(largest<250000,`largest checkpoint ${largest}`);assert.ok(w.s.zones.length<=64);assert.ok(w.s.shots.length<=180);for(const p of w.s.players){p.connected=false;}step(w,2);assert.equal(w.s.shots.length,0);assert.equal(w.s.zones.length,0);
 });
-test('all nine new icons fit inside the shared eight-row pixel atlas',async()=>{
- const png=await readFile(new URL('../public/art/pixel-weapons.png',import.meta.url));assert.equal(png.readUInt32BE(16),WEAPON_ATLAS_COLUMNS*64);assert.equal(png.readUInt32BE(20),WEAPON_ATLAS_ROWS*64);assert.equal(WEAPON_ATLAS_ROWS,8);
+test('all ritual icons fit inside the expanded shared pixel atlas',async()=>{
+ const png=await readFile(new URL('../public/art/pixel-weapons.png',import.meta.url));assert.equal(png.readUInt32BE(16),WEAPON_ATLAS_COLUMNS*64);assert.equal(png.readUInt32BE(20),WEAPON_ATLAS_ROWS*64);assert.ok(WEAPON_ATLAS_ROWS>=8);
 });

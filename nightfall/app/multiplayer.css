@@ -9,3 +9,231 @@
 .network-signal{display:flex;align-items:center;gap:5px;color:#b6c5ad;min-width:49px;font:10px monospace}
 .network-signal small{font-size:9px}.network-signal.fair{color:#d1c191}.network-signal.slow,.network-signal.reconnecting{color:#dca293}.party-dot.offline{opacity:.35}
 @media(max-width:440px){.in-game .top-actions{gap:9px}.network-signal{min-width:42px}.connected{letter-spacing:2px}}
+
+/* Shared moonlit armory: engraved brass, player seals, and quiet weapon color. */
+.shared-upgrade-overlay {
+  z-index:70;
+  padding:16px;
+  background:radial-gradient(ellipse at 50% 35%,#26363d8c,#050b14ed 80%);
+  backdrop-filter:blur(3px);
+}
+.shared-upgrade-panel {
+  position:relative;
+  isolation:isolate;
+  display:flex;
+  flex-direction:column;
+  width:min(1120px,100%);
+  min-height:0;
+  max-height:calc(100dvh - 32px);
+  padding:23px 29px 15px;
+  border:1px solid #bda57975;
+  clip-path:polygon(0 16px,16px 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%);
+  background:repeating-linear-gradient(0deg,#c6b37e04 0px,#c6b37e04 1px,transparent 1px,transparent 4px),radial-gradient(ellipse at 5% 0,#bc9c5920,transparent 65%),linear-gradient(135deg,#273039,#111c29 78%);
+  box-shadow:inset 0 2px #e2c99714,inset 0 -3px #030a125e,0 24px 80px #0008;
+  color:#ede1c8;
+  text-align:left;
+}
+.shared-upgrade-panel::before {
+  content:'';
+  position:absolute;
+  z-index:-1;
+  inset:6px;
+  border:1px solid #bda57922;
+  clip-path:polygon(0 11px,11px 0,100% 0,100% calc(100% - 11px),calc(100% - 11px) 100%,0 100%);
+  pointer-events:none;
+}
+.draft-heading {position:relative;display:flex;align-items:center;justify-content:space-between;gap:20px;padding-bottom:17px;flex-shrink:0}
+.draft-heading::after {content:'';position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,#cfb88060,#cfb88025 65%,transparent)}
+.draft-title {display:flex;align-items:center;gap:16px;min-width:0}
+.draft-moon-seal {width:61px;height:61px;flex-shrink:0;stroke:#cdb783;stroke-width:.8;color:#dec593}
+.draft-moon-seal .draft-moon {fill:#cbb47a25;stroke:#e1c995;stroke-width:1.1}
+.draft-title small {display:flex;align-items:center;gap:11px;font-size:9px;letter-spacing:3px;color:#b2a58b}
+.draft-title small i,.draft-instruction>span i {width:3px;height:3px;background:#bba77a;transform:rotate(45deg);flex-shrink:0}
+.draft-heading h2 {font:400 29px/1.4 'Songti SC','SimSun',serif;letter-spacing:5px;margin:6px 0 0;color:#efe0bd}
+.draft-countdown {display:flex;align-items:center;gap:10px;color:#d1bd91;flex-shrink:0}
+.draft-clock {width:54px;height:54px;position:relative;display:grid;place-items:center}
+.draft-clock>svg {position:absolute;inset:0;fill:none;stroke-width:1.3;transform:rotate(-90deg)}
+.draft-clock-track {stroke:#cdb58024}
+.draft-clock-remaining {stroke:currentColor}
+.draft-clock strong {display:flex;align-items:baseline;gap:2px;font:24px/1 Georgia,serif;font-variant-numeric:tabular-nums}
+.draft-clock strong small {font:9px 'Songti SC','SimSun',serif;color:#b4aa96}
+.draft-countdown>span {font:12px 'Songti SC','SimSun',serif;letter-spacing:2px}
+.draft-countdown>span small {display:block;margin-top:7px;font:9px sans-serif;letter-spacing:1px;color:#a3a79e}
+.draft-countdown.urgent {color:#f0ad88}
+.draft-countdown.urgent>span small {color:#e3b393}
+.draft-roster {display:grid;grid-template-columns:repeat(var(--party-size),minmax(0,1fr));gap:9px;margin-top:16px;flex-shrink:0}
+.draft-player {position:relative;display:flex;align-items:center;gap:11px;min-width:0;padding:9px 11px;border:1px solid #b2a17c22;background:#0b14274d;box-shadow:inset 0 -1px color-mix(in srgb,var(--player-color) 26%,transparent)}
+.draft-player.is-self {background:linear-gradient(110deg,color-mix(in srgb,var(--player-color) 8%,transparent),#0b14274d);border-color:color-mix(in srgb,var(--player-color) 40%,transparent)}
+.draft-player-seal {position:relative;display:grid;place-items:center;flex-shrink:0;width:30px;height:32px;font:12px Georgia,serif;color:var(--player-color)}
+.draft-player-seal::before {content:'';position:absolute;inset:3px 2px;border:1px solid currentColor;opacity:.4;transform:rotate(45deg);border-radius:2px}
+.draft-player-copy {min-width:0;flex:1}
+.draft-player-copy>span {display:flex;align-items:center;gap:6px;font:12px 'Songti SC','SimSun',serif;color:#d5d4c4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.draft-player-name {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.draft-player-copy em {flex-shrink:0;font:9px sans-serif;padding:1px 4px;border:1px solid color-mix(in srgb,var(--player-color) 22%,transparent);color:var(--player-color)}
+.draft-player-copy small {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;color:#a0a89f;margin-top:6px;line-height:1.3}
+.draft-player-dot {width:4px;height:4px;flex-shrink:0;transform:rotate(45deg);background:var(--player-color);opacity:.6}
+.draft-player-check {flex-shrink:0;color:var(--player-color)}
+.draft-player.picked {border-color:color-mix(in srgb,var(--player-color) 45%,transparent)}
+.draft-player.picked small {color:var(--player-color)}
+.draft-player.is-ghost .draft-player-seal,.draft-player.is-ghost .draft-player-dot {opacity:.45}
+.draft-instruction {display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0 10px;flex-shrink:0}
+.draft-instruction p {font-size:11px;line-height:1.7;margin:0;color:#c5c0ad}
+.draft-instruction>span {display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:10px;color:#9ea79f}
+.draft-instruction>span b {font:14px Georgia,serif;color:#dbc597}
+.draft-instruction>span i {margin:0 4px;opacity:.5}
+.draft-auto-hint {display:none}
+.draft-scroll {overflow:auto;min-height:0;padding:4px 5px 13px 2px;scrollbar-width:thin;scrollbar-color:#bba47550 transparent;overscroll-behavior:contain}
+.draft-board {position:relative;display:grid;grid-template-columns:repeat(var(--draft-columns),minmax(0,1fr));gap:11px}
+.draft-card-wrap {position:relative;min-width:0}
+.draft-card {
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  width:100%;
+  height:100%;
+  min-height:172px;
+  padding:11px 14px 0;
+  text-align:left;
+  border:1px solid #bda57940;
+  border-radius:0;
+  clip-path:polygon(0 8px,8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%);
+  background:radial-gradient(ellipse at 20% 35%,color-mix(in srgb,var(--card-accent) 5%,transparent),transparent 80%),linear-gradient(135deg,#2e3943,#1b2835);
+  color:#eee1c7;
+  box-shadow:inset 0 0 0 4px #c9af7004;
+  transition:border-color .16s;
+}
+.draft-card::before {content:'';position:absolute;inset:4px;border:1px solid #bda5790f;pointer-events:none;clip-path:inherit}
+.draft-card::after {content:'';position:absolute;top:0;left:16px;width:28px;height:1px;background:var(--card-accent);opacity:.5;pointer-events:none}
+.draft-card:not(:disabled):hover,.draft-card:focus-visible {border-color:#d7bd87;box-shadow:inset 0 0 0 1px #d9be7855,inset 0 -2px var(--card-accent);outline:none}
+.draft-card:not(:disabled):hover .draft-weapon-seal,.draft-card:focus-visible .draft-weapon-seal {border-color:color-mix(in srgb,var(--card-accent) 65%,transparent);background-color:color-mix(in srgb,var(--card-accent) 7%,transparent)}
+.draft-card:focus-visible::before {border-color:#dcc28a66}
+.draft-card:disabled {cursor:default;opacity:1}
+.draft-card.favorite {border-color:#d4b77a80;background-image:radial-gradient(ellipse at 0 0,#b99b4620,transparent 75%),linear-gradient(135deg,#353b3d,#1c2934)}
+.draft-card-top {display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:9px;line-height:16px;color:#b9b7a6;letter-spacing:1px}
+.draft-card-top>span {display:flex;align-items:center;gap:6px}
+.draft-card-top i {width:3px;height:3px;background:var(--card-accent);transform:rotate(45deg);opacity:.65}
+.draft-card-top kbd {display:grid;place-items:center;width:17px;height:17px;border:1px solid #b5a17c38;color:#c5b18a;font:10px Georgia,serif;letter-spacing:0;background:#0d192533}
+.draft-card-main {display:flex;align-items:center;gap:13px;min-width:0;margin:10px 0 11px;color:var(--card-accent)}
+.draft-weapon-seal {position:relative;display:grid;place-items:center;width:60px;height:60px;flex-shrink:0;border:1px solid color-mix(in srgb,var(--card-accent) 25%,transparent);border-radius:50%;background:radial-gradient(circle,#101b2b70,#0e1b2622);transition:border-color .16s,background-color .16s}
+.draft-weapon-seal::before {content:'';position:absolute;inset:4px;border:1px dashed color-mix(in srgb,var(--card-accent) 13%,transparent);border-radius:50%;pointer-events:none}
+.draft-weapon-seal::after {content:'';position:absolute;top:-2px;left:calc(50% - 2px);width:3px;height:3px;background:var(--card-accent);transform:rotate(45deg);opacity:.6}
+.draft-weapon-seal .weapon-icon {position:relative;filter:drop-shadow(0 3px 3px #030a1699)}
+.draft-weapon-name {min-width:0}
+.draft-weapon-name h3 {font:400 19px/1.4 'Songti SC','SimSun',serif;color:#eee0bf;letter-spacing:2px;margin:0;text-wrap:balance;overflow-wrap:anywhere}
+.draft-rank {display:block;font-size:9px;line-height:1.4;margin-top:4px;letter-spacing:.5px;color:#a9b1aa}
+.draft-rank-pips {display:flex;gap:5px;margin:7px 0 1px 1px;height:4px}
+.draft-rank-pips i {width:3px;height:3px;border:1px solid color-mix(in srgb,var(--card-accent) 30%,transparent);transform:rotate(45deg)}
+.draft-rank-pips .lit {background:var(--card-accent);border-color:var(--card-accent);opacity:.7}
+.draft-rank-pips .next {border-color:var(--card-accent);background:color-mix(in srgb,var(--card-accent) 25%,transparent)}
+.draft-card>p {font-size:10px;line-height:1.7;color:#b1b9b2;margin:0 0 10px;min-height:17px;overflow-wrap:anywhere}
+.draft-card-footer {display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:30px;border-top:1px solid #bda57925;margin-top:auto;font-size:10px;color:#d6bf90}
+.draft-card-footer>svg {opacity:.65;flex-shrink:0}
+.draft-favorite-star {color:#e1c381;margin-left:2px;flex-shrink:0}
+.draft-pick-label {letter-spacing:2px}
+.draft-card-wrap.claimed .draft-card {border-color:color-mix(in srgb,var(--claim-color) 38%,transparent);background:linear-gradient(135deg,#1d2b31,#14202b)}
+.draft-card-wrap.claimed .draft-card::after,.draft-card-wrap.claimed .draft-card-top i {background:var(--claim-color)}
+.draft-card-wrap.claimed .draft-card-main,.draft-card-wrap.claimed .draft-card>p {opacity:.57}
+.draft-card-wrap.claimed .draft-card-top {color:var(--claim-color)}
+.draft-card-owner {display:flex;align-items:center;gap:6px;width:100%;min-width:0;color:var(--claim-color)}
+.draft-card-owner>svg {flex-shrink:0}
+.draft-card-owner>span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.draft-card-owner b {flex-shrink:0;margin-left:auto;padding:1px 3px;font:9px 'Songti SC','SimSun',serif;border:1px solid color-mix(in srgb,var(--claim-color) 35%,transparent);transform:rotate(-4deg)}
+.draft-cursor {position:absolute;display:flex;align-items:flex-start;z-index:4;pointer-events:none;transition:left .07s linear,top .07s linear;filter:drop-shadow(0 1px 2px #000);max-width:160px}
+.draft-cursor>svg {flex-shrink:0}
+.draft-cursor>span {background:#111b27f5;border:1px solid color-mix(in srgb,currentColor 60%,transparent);border-left:2px solid currentColor;padding:4px 7px;font:10px 'Songti SC','SimSun',serif;white-space:nowrap;max-width:124px;overflow:hidden;text-overflow:ellipsis;transform:translate(-3px,19px)}
+.draft-bottom {display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:9px;border-top:1px solid #bda57925;color:#929d95;font-size:9px;flex-shrink:0;line-height:1.5}
+.draft-bottom>span {display:flex;align-items:center;gap:5px}
+.draft-bottom>span:last-child {color:#b9ab89}
+.draft-bottom svg {flex-shrink:0}
+.draft-touch-hint {display:none}
+
+@media(max-width:960px) and (min-width:761px) {
+  .shared-upgrade-panel {padding:21px 22px 14px}
+  .draft-card {padding-left:11px;padding-right:11px}
+  .draft-card-main {gap:9px}
+  .draft-weapon-seal {width:52px;height:52px}
+  .draft-weapon-name h3 {font-size:17px;letter-spacing:1px}
+  .draft-player {gap:8px;padding-left:8px;padding-right:8px}
+}
+@media(max-width:760px) {
+  .shared-upgrade-overlay {padding:10px}
+  .shared-upgrade-panel {padding:19px 17px 13px;max-height:calc(100dvh - 20px)}
+  .draft-heading {gap:10px;padding-bottom:15px}
+  .draft-title {gap:11px}
+  .draft-moon-seal {width:47px;height:47px}
+  .draft-title small {font-size:8px;letter-spacing:2px;gap:7px}
+  .draft-heading h2 {font-size:24px;letter-spacing:3px;margin-top:6px}
+  .draft-countdown {gap:5px}
+  .draft-clock {width:46px;height:46px}
+  .draft-clock strong {font-size:22px}
+  .draft-countdown>span {display:none}
+  .draft-roster {grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:13px}
+  .draft-player {gap:8px;padding:8px 9px}
+  .draft-player-seal {width:26px;height:28px;font-size:11px}
+  .draft-player-copy>span {font-size:12px;letter-spacing:0}
+  .draft-player-copy small {font-size:9px;margin-top:5px}
+  .draft-instruction {flex-direction:column;align-items:flex-start;gap:5px;margin:11px 0 9px}
+  .draft-instruction p {font-size:10px}
+  .draft-instruction>span {font-size:9px;width:100%}
+  .draft-instruction>span b {font-size:12px}
+  .draft-auto-hint {display:inline;margin-left:auto;font-size:9px;color:#a5ad9f}
+  .draft-scroll {padding-right:3px;padding-bottom:12px}
+  .draft-board {grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .draft-card {min-height:190px;padding:10px 11px 0}
+  .draft-card-main {flex-direction:column;align-items:flex-start;gap:9px;margin:10px 0 9px}
+  .draft-weapon-seal {width:54px;height:54px;align-self:center}
+  .draft-weapon-name {width:100%;text-align:center}
+  .draft-weapon-name h3 {font-size:18px;letter-spacing:2px}
+  .draft-rank {font-size:9px;margin-top:3px}
+  .draft-rank-pips {justify-content:center;margin-top:6px}
+  .draft-card>p {font-size:9px;line-height:1.7;min-height:30px;text-align:center;margin-bottom:8px}
+  .draft-card-footer {min-height:31px;font-size:9px}
+  .draft-card-owner {gap:3px;font-size:9px}
+  .draft-card-owner b {display:none}
+  .draft-bottom {font-size:8px;gap:8px;padding-top:9px}
+  .draft-bottom>span:last-child {gap:3px}
+  .draft-desktop-hint {display:none}
+  .draft-touch-hint {display:inline}
+}
+@media(max-width:360px) {
+  .shared-upgrade-panel {padding-left:13px;padding-right:13px}
+  .draft-moon-seal {width:38px;height:38px}
+  .draft-heading h2 {font-size:21px;letter-spacing:2px}
+  .draft-title {gap:8px}
+  .draft-card {padding-left:8px;padding-right:8px}
+  .draft-weapon-name h3 {font-size:16px;letter-spacing:1px}
+  .draft-bottom>span:last-child {display:none}
+}
+@media(max-height:600px) {
+  .shared-upgrade-panel {padding-top:14px;padding-bottom:10px}
+  .draft-heading {padding-bottom:11px}
+  .draft-moon-seal {width:44px;height:44px}
+  .draft-heading h2 {font-size:23px;margin-top:3px}
+  .draft-clock {width:42px;height:42px}
+  .draft-roster {margin-top:10px}
+  .draft-player {padding-top:6px;padding-bottom:6px}
+  .draft-instruction {margin:8px 0 6px}
+  .draft-card {min-height:166px}
+}
+@media(max-height:480px) and (max-width:760px) and (min-width:481px) {
+  .draft-roster {grid-template-columns:repeat(var(--party-size),minmax(0,1fr))}
+  .draft-player {padding:6px;gap:6px}
+  .draft-player-seal {width:22px;height:24px}
+  .draft-player-copy>span {font-size:10px}
+  .draft-player-copy em {font-size:8px;padding:0 2px}
+  .draft-player-dot,.draft-player-check {display:none}
+  .draft-instruction {flex-direction:row;align-items:center}
+  .draft-instruction>span {width:auto}
+  .draft-auto-hint {display:none}
+  .draft-card-main {flex-direction:row;gap:10px}
+  .draft-weapon-name {text-align:left}
+  .draft-rank-pips {justify-content:flex-start}
+  .draft-card>p {text-align:left;min-height:17px}
+}
+@media(hover:none) and (min-width:761px) {
+  .draft-desktop-hint {display:none}
+  .draft-touch-hint {display:inline}
+}
+@media(prefers-reduced-motion:reduce) {
+  .draft-cursor,.draft-card,.draft-weapon-seal {transition:none}
+}

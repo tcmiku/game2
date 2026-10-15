@@ -1,4 +1,5 @@
 import { normalizeBoons } from '../../../lib/camp.mjs';
+import {cleanRealtimeInput,cleanSignals} from '../../../lib/realtime.mjs';
 import { WEAPONS,normalizeEffects } from '../../../lib/equipment.mjs';
 import {env} from 'cloudflare:workers';
 import {unpackSnapshot,presentationPacket} from '../../../lib/network.mjs';
@@ -7,7 +8,7 @@ import {MEMBER_GRACE_MS,HOST_LEASE_MS,MEMBER_ONLINE_MS,ROOM_TTL_MS} from '../../
 export const dynamic='force-dynamic';
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const positiveInteger=(value:any)=>Number.isFinite(Number(value))?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(Number(value)))):0;
-const cleanInput=(value:any={})=>({boons:normalizeBoons(value.boons),effects:normalizeEffects(value.effects),weapon:WEAPONS.includes(value.weapon)?value.weapon:'blade',x:Math.max(-1,Math.min(1,Number(value.x)||0)),y:Math.max(-1,Math.min(1,Number(value.y)||0)),choice:typeof value.choice==='string'?value.choice.slice(0,16):'',seq:positiveInteger(value.seq),serial:positiveInteger(value.serial),moveAt:Number.isFinite(value.moveAt)?Math.max(0,value.moveAt):undefined});
+const cleanInput=(value:any={})=>({...cleanRealtimeInput(value),boons:normalizeBoons(value.boons),effects:normalizeEffects(value.effects),weapon:WEAPONS.includes(value.weapon)?value.weapon:'blade',signals:cleanSignals(value.signals),serial:positiveInteger(value.serial)});
 export async function POST(req:Request){
  try{
   if(Number(req.headers.get('content-length')||0)>300000)return reply({error:'数据过大'},413);

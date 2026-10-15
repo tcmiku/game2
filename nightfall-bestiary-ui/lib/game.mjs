@@ -1,4 +1,5 @@
 import {addWeaponGuard} from './counterfire.mjs';
+import {updateDraft,claimDraft} from './shared-draft.mjs';
 import {ARENA_W as W,ARENA_H as H,createDestructibles,collideDestructibles,damageDestructible,stepMirrorShield,drawMirrorShield,drawExperience,drawDestructible,drawFrontierEffect} from "./frontier.mjs";
 export {W,H};
 export const DURATION=1800;
@@ -30,13 +31,13 @@ export class World {
   const w=new World(copy.players,random);w.s={...w.s,...copy};w.spawnCd=Number.isFinite(engine.spawnCd)?engine.spawnCd:.2;w.eliteAt=Number.isFinite(engine.eliteAt)?engine.eliteAt:Math.max(60,Math.floor(copy.time/45+1)*45);w.lastSeq=engine.lastSeq||{};
   let largest=Number(engine.nextId)||0;for(const list of Object.values(copy))if(Array.isArray(list))for(const entity of list){if(typeof entity?.id==='number')largest=Math.max(largest,entity.id+1);for(const child of entity?.familiars||[])if(typeof child.id==='number')largest=Math.max(largest,child.id+1);}uid=Math.max(uid,largest);return w;
  }
- reconcileMembers(members){const byId=new Map(members.map(m=>[m.id,m]));this.s.players=this.s.players.filter(p=>byId.has(p.id));for(const p of this.s.players){const m=byId.get(p.id);p.connected=m.connected!==false;this.input(p.id,p.connected?m.input:{x:0,y:0});}}
+ reconcileMembers(members){const byId=new Map(members.map(m=>[m.id,m]));this.s.players=this.s.players.filter(p=>byId.has(p.id));for(const p of this.s.players){const m=byId.get(p.id);p.connected=m.connected!==false;if(p.connected)this.input(p.id,m.input);else this.inputs[p.id]={...this.inputs[p.id],x:0,y:0,choice:''};}}
  targets(){if(this.targetFrame!==this.s.frame||this.targetEnemies!==this.s.enemies){this.targetFrame=this.s.frame;this.targetEnemies=this.s.enemies;this.targetList=[...this.s.enemies,...(this.s.props||[]).filter(p=>p.hp>0)];}return this.targetList;}
  guard(p,weapon,shape){addWeaponGuard(this,p,weapon,shape);}
  nextId(){return uid++;}
  castPose(p,key,target){if(Number.isFinite(p.attackAt)&&this.s.time-p.attackAt<.32)return;p.attackAt=this.s.time;p.attackKind=key;p.attackAngle=target?Math.atan2(target.y-p.y,target.x-p.x):p.face===-1?Math.PI:0;}
 
- input(id, input) {this.inputs[id]=input;const p=this.s.players.find(p=>p.id===id);if(p&&Number.isFinite(input?.moveAt)&&p.inputAt!==input.moveAt){p.inputAt=input.moveAt;p.inputAge=0;}if(input?.choice && input.seq!==this.lastSeq[id]) {this.lastSeq[id]=input.seq;this.upgrade(id,input.choice);}}
+ input(id, input) {const previous=this.inputs[id];if(previous&&((input?.serial??0)<(previous.serial??0)||(input?.serial??0)===(previous.serial??0)&&Number.isFinite(input?.moveAt)&&Number.isFinite(previous.moveAt)&&input.moveAt<previous.moveAt))return;this.inputs[id]=input;const p=this.s.players.find(p=>p.id===id);if(p&&Number.isFinite(input?.moveAt)&&p.inputAt!==input.moveAt){p.inputAt=input.moveAt;p.inputAge=0;}if(input?.choice && Number.isFinite(input.seq)&&input.seq>(this.lastSeq[id]??-1)) {this.lastSeq[id]=input.seq;this.upgrade(id,input.choice,input.draftId);}}
  craft(id,key) {
   const p=this.s.players.find(p=>p.id===id);
   if(this.s.status!=='playing'||!p||p.hp<=0||p.choices.length||!forgeState(p,key).ready)return false;
@@ -46,14 +47,16 @@ export class World {
   p.lastForge={key,at:this.s.time};if(sources.includes('blade'))p.cooldown=0;if(sources.includes('nova'))p.novaCd=0;if(sources.includes('storm'))p.stormCd=0;if(sources.includes('orbit'))p.pulseCd=0;
   this.effect(p.x,p.y,'forge',1.2,190);this.events.push('forge');return true;
  }
- upgrade(id,key) {
+ upgrade(id,key,draftId) {
   if(ARTIFACTS[key])return this.craft(id,key);
   const p=this.s.players.find(p=>p.id===id);
   if(!p||p.hp<=0||this.s.status!=='playing'||!p.choices.includes(key))return false;
-  if(key==='mend'){p.hp=Math.min(p.maxHp,p.hp+30*(1+(p.ranks.preservation||0)*.3));p.choices=[];this.events.push('heal');this.checkLevel(p);return true;}
+  if(key!=='mend'&&!canUpgrade(p,key))return false;
+  if(!claimDraft(this,p,key,draftId))return false;
+  if(key==='mend'){p.hp=Math.min(p.maxHp,p.hp+30*(1+(p.ranks.preservation||0)*.3));p.choices=[];this.events.push('heal');if(this.s.draft)updateDraft(this);else this.checkLevel(p);return true;}
   if(!canUpgrade(p,key))return false;
   this.applyUpgrade(p,key);
-  p.choices=[];this.events.push('upgrade');this.checkLevel(p);return true;
+  p.choices=[];this.events.push('upgrade');if(this.s.draft)updateDraft(this);else this.checkLevel(p);return true;
  }
  applyUpgrade(p,key){
   p.ranks[key]=(p.ranks[key]||0)+1;if(UPGRADES[key].kind==='weapon')trackWeapon(p,key,this.s.time);
@@ -148,6 +151,7 @@ export class World {
  for(const chest of s.chests){const collector=s.players.find(p=>p.hp>0&&dist(p,chest)<38);if(collector){chest.taken=true;for(const p of s.players){if(p.hp<=0)continue;p.relics+=chest.value||1;p.lastChest=s.time;const key=chestWeapon(p,this.random);if(key){this.applyUpgrade(p,key);if(p.choices.some(option=>option!=='mend'&&!canUpgrade(p,option)))p.choices=rollChoices(p,this.random);p.lastChestUpgrade={key,rank:p.ranks[key],at:s.time};}}this.effect(chest.x,chest.y,'forge',.8,100);this.events.push('chest');}}
  noteDeaths(this);s.chests=s.chests.filter(c=>!c.taken);if(s.chests.length>32){const tail=s.chests.splice(0,s.chests.length-31);s.chests.push({...tail[tail.length-1],value:tail.reduce((n,c)=>n+(c.value||1),0)});}
  s.enemies=s.enemies.filter(e=>e.hp>0);s.shots=s.shots.filter(b=>b.life>0).slice(-180);s.gems=s.gems.filter(g=>g.v>0);if(s.gems.length>260){const tail=s.gems.splice(0,80);s.gems.push({id:uid++,x:tail[0].x,y:tail[0].y,v:tail.reduce((n,g)=>n+(g.value||g.v),0),value:tail.reduce((n,g)=>n+(g.value||g.v),0),type:'gem'});}
+ s.zones=s.zones.filter(z=>z.life>0).slice(-64);
  s.impacts=s.impacts.filter(hit=>s.time-hit.at<.8);
  for(const f of s.effects)f.life-=dt;s.effects=s.effects.filter(f=>f.life>0).slice(-180);if(this.events.length>24)this.events=this.events.slice(-24);
  }
