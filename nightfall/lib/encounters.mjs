@@ -1,3 +1,4 @@
+import {stepDuskBullet} from './dusk-foes.mjs';
 import {stepBossAttack,bossMotion,stepBossHazard,drawBossWarnings,drawBossHazard} from './bosses.mjs';
 import {attackContact,cancelBullet,circleContact} from './counterfire.mjs';
 import {ARENA_W,ARENA_H} from './frontier.mjs';
@@ -57,6 +58,7 @@ export function stepHostiles(w,dt){
  for(const h of s.hazards){h.wait-=dt;h.life-=dt;if(stepBossHazard(w,h,dt,hurtPlayer)||stepBestiaryHazard(w,h,dt,hurtPlayer))continue;if(h.wait<=0&&!h.fired){h.fired=true;if(h.kind==='roots')for(const p of s.players)if(dist(p,h)<h.radius+12)hurtPlayer(w,p,h.damage);}}
  for(const b of s.hostile){
   if(b.life<=0)continue;
+  stepDuskBullet(b,dt);
   const ox=b.x,oy=b.y,tx=b.x+b.vx*dt,ty=b.y+b.vy*dt,contact=attackContact(w,b,ox,oy,tx,ty);b.life-=dt;
   const hits=s.players.filter(p=>p.hp>0).map(p=>({p,t:circleContact(ox,oy,tx,ty,p.x,p.y,b.radius+14)})).filter(hit=>hit.t<=1).sort((a,b)=>a.t-b.t);
   for(const hit of hits){if(contact&&contact.t<=hit.t)break;if(hurtPlayer(w,hit.p,b.damage)){b.life=0;break;}}
@@ -77,7 +79,7 @@ export function drawHostiles(renderer,s,time){
   c.save();c.strokeStyle='#ffbe84';c.lineWidth=5;c.setLineDash([12,9]);c.beginPath();c.moveTo(e.x,e.y);c.lineTo(e.x+Math.cos(e.chargeAngle)*550,e.y+Math.sin(e.chargeAngle)*550);c.stroke();c.restore();
  }
  for(const b of s.hostile||[]){
-  if(drawBestiaryBullet(renderer,b))continue;
+  if(drawBestiaryBullet(renderer,b,time))continue;
   const size=b.radius*2;c.save();c.strokeStyle='#18212d';c.lineWidth=size*.85;c.beginPath();c.moveTo(b.x-b.vx*.09,b.y-b.vy*.09);c.lineTo(b.x,b.y);c.stroke();
   c.strokeStyle='#ff826a';c.lineWidth=size*.45;c.stroke();
   renderer.foeSprite(b.kind==='thorn'?3:2,b.x,b.y,size*2.6,Math.atan2(b.vy,b.vx));c.restore();

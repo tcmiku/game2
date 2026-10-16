@@ -4,6 +4,8 @@
 
 [在线游戏](https://nightfall-survivors.hjm616.chatgpt.site)
 
+[浏览器测试页面速查](#浏览器测试页面速查)
+
 ## 项目特色
 
 - **33 种武器、6 个武器位**：飞刃、环绕、冰爆、连锁闪电、炮塔、陷阱、锁链和龙卷等武器独立攻击。
@@ -453,7 +455,26 @@ TEST_URL=http://127.0.0.1:5174 node tests/rooms.integration.mjs
 
 重连集成测试只连接本机，并通过本地 D1 调整测试成员时间戳验证 60 秒恢复窗口，无需等待一分钟；因此需要先完成构建并保留 `dist/server/wrangler.json`。
 
-测试覆盖房间会话、并发房主接管、旧输入隔离、刷新恢复、武器行为、合成条件、永久成长、伤害归属、资源解码、像素特效与绘制调用、镜盾反击、全部武器破坏物件、经验分级、新增居民解锁、增量基准丢失、双向传输量和 400 毫秒快照间隔的连续移动，以及四人长时间对局的快照和实体数量上限。`tests/browser/rendering.html` 提供浏览器连续绘制回归，`tests/browser/weapon-vfx.html` 提供按武器类别切换的特效预览，`tests/browser/network.html` 可验证四人配色、昵称错位、120 毫秒模拟延迟与短时丢包。上述页面均供本地开发验证使用。
+测试覆盖房间会话、并发房主接管、旧输入隔离、刷新恢复、武器行为、合成条件、永久成长、伤害归属、资源解码、像素特效与绘制调用、镜盾反击、全部武器破坏物件、经验分级、新增居民解锁、增量基准丢失、双向传输量和 400 毫秒快照间隔的连续移动，以及四人长时间对局的快照和实体数量上限。
+
+### 浏览器测试页面速查
+
+先在 `nightfall/`（本 README 所在目录）运行 `npm run dev`，再点击下表地址。游戏主页面：[http://localhost:5173/](http://localhost:5173/)。这些测试页面使用开发服务加载源码，请通过 HTTP 打开，不要直接双击 HTML 文件，也不要使用生产构建服务代替开发服务。
+
+| 测试页面 | 本地地址 | 测试内容与操作 |
+| --- | --- | --- |
+| 荒野新敌 | [http://localhost:5173/tests/browser/dusk-foes.html](http://localhost:5173/tests/browser/dusk-foes.html) | 苔甲卫、枯镰侍、烬角兽、缚骨鸦的像素动画与真实攻击；可切换单种／同场、暂停前摇，点击战场后用 WASD／方向键测试躲避。 |
+| 首领、战阶与铁匠淬炼 | [http://localhost:5173/tests/browser/encounter-expansion.html](http://localhost:5173/tests/browser/encounter-expansion.html) | 切换四种首领或热梗武器，检查首领预警、血条、攻击与雾灯妖等小怪；支持暂停、步进、试击首领和铁匠淬炼面板。 |
+| 武器特效 | [http://localhost:5173/tests/browser/weapon-vfx.html](http://localhost:5173/tests/browser/weapon-vfx.html) | 按类别或指定武器切换攻击，检查热梗兵装、科技、鹈鹕、仪式武器及神器的特效；支持暂停和步进。 |
+| 热梗神器 | [http://localhost:5173/tests/browser/meme-relics.html](http://localhost:5173/tests/browser/meme-relics.html) | 切换星旋猫团、极夜合唱、星轨远征、黄金滑稽宴，对比基础武器与神器，查看伤害和实体数量。 |
+| 共享选牌与真实实时连接 | [http://localhost:5173/tests/browser/shared-draft.html](http://localhost:5173/tests/browser/shared-draft.html) | 检查 2／3／4 人卡池、各玩家视角、选牌和观战；点击「验证四人实时连接」测试真实 WebRTC、大快照分片、输入及 HTTP 回退。 |
+| 四人同步模拟 | [http://localhost:5173/tests/browser/network.html](http://localhost:5173/tests/browser/network.html) | 使用 WASD 移动 P4，检查四人配色、昵称排布和 120 毫秒模拟往返延迟；可模拟 600 毫秒丢包及四人靠近。 |
+| Canvas 连续绘制回归 | [http://localhost:5173/tests/browser/rendering.html](http://localhost:5173/tests/browser/rendering.html) | 自动检查武器、神器、敌人、宝箱等绘制，并加速模拟至 30 分钟；观察页面底部的进度及 PASS／FAIL，运行可能较久。 |
+| 原生音频 | [http://localhost:5173/tests/browser/music.html](http://localhost:5173/tests/browser/music.html) | 点击试听营地／战斗配乐、切换静音；点击「验证两首音轨」检查音频非静音、无削波且数值有效。 |
+
+普通预览和同步模拟无需创建联机房间；共享选牌页中的「验证四人实时连接」需要先完成本地数据库迁移，会创建并清理临时测试房间。
+
+如果开发服务使用其他端口，将链接里的 `5173` 替换为实际端口。局域网手机测试时，将 `localhost` 替换为运行开发服务的电脑局域网 IP，端口和页面路径保持一致。
 
 ### 弹幕抵消与科技兵装
 

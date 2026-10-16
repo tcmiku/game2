@@ -1,7 +1,8 @@
+import {DUSK_TYPES,stepDuskAttack,duskMotion,stepDuskHazard,drawDuskWarnings,drawDuskHazard,drawDuskBullet} from './dusk-foes.mjs';
 import {EXPANDED_TYPES,stepExpandedAttack,expandedMotion,stepExpandedStrafe,stepWeb,drawExpandedWarnings,drawWeb} from './expanded-foes.mjs';
 /** Additional enemy archetypes share the authoritative enemy and hazard pools. */
 import {ARENA_W,ARENA_H} from './frontier.mjs';
-export const ENEMY_TYPES={...EXPANDED_TYPES,
+export const ENEMY_TYPES={...EXPANDED_TYPES,...DUSK_TYPES,
  8:{name:'灰鬃猎犬',hp:28,speed:108,size:20,height:94,xp:2,damage:12,from:18,weight:14},
  9:{name:'孢囊魔',hp:55,speed:44,size:25,height:106,xp:2,damage:9,from:40,weight:11},
  10:{name:'裂骨弩手',hp:38,speed:72,size:21,height:99,xp:2,damage:10,from:65,weight:11},
@@ -22,7 +23,7 @@ function bolt(w,e){const a=e.burstAngle;w.s.hostile.push({id:w.nextId(),owner:e.
 export function stepBestiaryAttack(w,e,target,dt){
  if(!ENEMY_TYPES[e.type])return false;
  if(e.frozen>0||e.stagger>0)return true;
- if(stepExpandedAttack(w,e,target,dt))return true;
+ if(stepDuskAttack(w,e,target,dt)||stepExpandedAttack(w,e,target,dt))return true;
  const distance=dist(e,target);e.skillCd=(e.skillCd??(e.type===11?3.5:e.type===12?1.8:1.3))-dt;
  if(e.type===8){
   if(e.skill==='pounce'){
@@ -53,6 +54,7 @@ export function stepBestiaryAttack(w,e,target,dt){
  return true;
 }
 export function bestiaryMotion(e,distance){
+ const dusk=duskMotion(e,distance);if(dusk!==null)return dusk;
  const extra=expandedMotion(e,distance);if(extra!==null)return extra;
  if(!ENEMY_TYPES[e.type])return null;
  if(e.skill==='pounce'||e.skill==='slam'||e.skill==='volley'||e.skill==='summon'||e.chargeLeft>0)return 0;
@@ -68,7 +70,7 @@ export function stepBestiaryStrafe(e,target,dt){
 }
 export function bestiaryDeath(w,e){if(e.type===9)poison(w,e,e,.65,2.2);}
 export function stepBestiaryHazard(w,h,dt,hurt){
- if(stepWeb(w,h,dt,hurt))return true;
+ if(stepDuskHazard(w,h,dt,hurt)||stepWeb(w,h,dt,hurt))return true;
  if(h.kind==='spores'){
   if(h.wait<=0){h.tick-=dt;if(h.tick<=0){h.tick=.7;for(const p of w.s.players)if(p.hp>0&&dist(p,h)<h.radius+12)hurt(w,p,h.damage);}}return true;
  }
@@ -78,7 +80,7 @@ export function stepBestiaryHazard(w,h,dt,hurt){
  return false;
 }
 export function drawBestiaryWarnings(renderer,s,time){
- const c=renderer.ctx,tau=Math.PI*2;drawExpandedWarnings(renderer,s);
+ const c=renderer.ctx,tau=Math.PI*2;drawExpandedWarnings(renderer,s);drawDuskWarnings(renderer,s);
  for(const e of s.enemies||[]){
   if(e.type===8&&(e.skill==='pounce'||e.chargeLeft>0)){
    const a=e.chargeAngle??e.attackAngle,ready=e.skill==='pounce';c.save();c.strokeStyle=ready?'#eab17b':'#f6d5a1';c.globalAlpha=ready?.65:.35;c.lineWidth=2;c.beginPath();c.moveTo(e.x,e.y);c.lineTo(e.x+Math.cos(a)*148,e.y+Math.sin(a)*148);c.stroke();
@@ -92,7 +94,7 @@ export function drawBestiaryWarnings(renderer,s,time){
  }
 }
 export function drawBestiaryHazard(renderer,h,time){
- if(drawWeb(renderer,h))return true;
+ if(drawDuskHazard(renderer,h)||drawWeb(renderer,h))return true;
  if(h.kind!=='spores'&&h.kind!=='slam')return false;
  const c=renderer.ctx,tau=Math.PI*2,ready=h.wait<=0,progress=Math.max(0,Math.min(1,1-h.wait/(h.delay||1)));
  c.save();c.strokeStyle=ready?'#ef826c':'#efba81';c.lineWidth=2;c.fillStyle=ready?'#d878492b':'#d5a47013';c.beginPath();c.arc(h.x,h.y,h.radius,0,tau);c.fill();c.stroke();
@@ -101,6 +103,7 @@ export function drawBestiaryHazard(renderer,h,time){
  else if(ready){c.globalAlpha=Math.max(0,h.life/.35);c.strokeStyle='#f1c58c';c.lineWidth=5;c.beginPath();c.arc(h.x,h.y,h.radius*Math.max(0,1-h.life/.7),0,tau);c.stroke();for(let i=0;i<8;i++){const a=i*tau/8;c.beginPath();c.moveTo(h.x+Math.cos(a)*20,h.y+Math.sin(a)*20);c.lineTo(h.x+Math.cos(a)*h.radius*.9,h.y+Math.sin(a)*h.radius*.9);c.stroke();}}
  c.restore();return true;
 }
-export function drawBestiaryBullet(renderer,b){
+export function drawBestiaryBullet(renderer,b,time=0){
+ if(drawDuskBullet(renderer,b,time))return true;
  if(b.kind!=='bolt')return false;const c=renderer.ctx,a=Math.atan2(b.vy,b.vx);c.save();c.translate(Math.round(b.x),Math.round(b.y));c.rotate(a);c.strokeStyle='#131923';c.lineWidth=10;c.beginPath();c.moveTo(-30,0);c.lineTo(13,0);c.stroke();c.strokeStyle='#ef9b73';c.lineWidth=5;c.stroke();c.strokeStyle='#ffe7af';c.lineWidth=2;c.stroke();c.fillStyle='#f8d3a0';c.beginPath();c.moveTo(19,0);c.lineTo(5,-7);c.lineTo(8,0);c.lineTo(5,7);c.closePath();c.fill();c.restore();return true;
 }

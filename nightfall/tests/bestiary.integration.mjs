@@ -13,5 +13,5 @@ try{
  await call({...host,action:'sync',status:'playing',snapshot:w.s,input:{weapon:'bow'}});const received=(await call({...party[3],action:'sync',input:{weapon:'wind'}})).snapshot;
  for(const type of Object.keys(ENEMY_TYPES).map(Number)){const e=received.enemies.find(e=>e.type===type);assert.ok(e,type);assert.equal(e.elite,2);assert.ok(Number.isFinite(e.attackAt));assert.ok(Number.isFinite(e.maxHp));}
  assert.ok(received.enemies.some(e=>e.summoner));assert.ok(received.hostile.some(b=>b.kind==='bolt'));assert.ok(received.hazards.some(h=>h.kind==='spores'));assert.equal(received.players.length,4);
- console.log('PASS: all five enemy types, elite variants, minions, sequential bolts and poison warnings synchronize in a four-player room');
+ console.log('PASS: all enemy archetypes, elite variants, minions, sequential bolts and poison warnings synchronize in a four-player room');
 }finally{for(const p of party.slice(1))await call({...p,action:'leave'});if(party[0])await call({...party[0],action:'leave'});}
