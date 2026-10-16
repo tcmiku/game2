@@ -1,3 +1,5 @@
+import {drawShrineShot} from './shrine-powers.mjs';
+import {drawDragonLightShot,drawDragonLightField,drawUltraBeam} from './dragon-light.mjs';
 import {drawMemeShot,drawMemeField} from './meme-arsenal.mjs';
 import {drawZmdField} from './zmd.mjs';
 import {drawPelican} from './pelican.mjs';
@@ -68,6 +70,8 @@ export class WeaponVFX{
   for(const b of s.shots||[]){if(!this.visible(b.x,b.y))continue;
    const p=s.players.find(p=>p.id===b.owner),key=p?.evolutions?.[b.weapon]||b.weapon,style=weaponStyle(key),scale=b.scale||1,a=Math.atan2(b.vy,b.vx),born=age(b,time),phase=this.reducedMotion?0:(time*1.8+b.id*.13)%1;
    c.save();c.globalAlpha=this.opacity(b.owner)*fade(b);
+   if(drawShrineShot(r,b)){c.restore();continue;}
+   if(drawDragonLightShot(r,b)){c.restore();continue;}
    if(drawSwordShot(r,b,time)){c.restore();continue;}
    if(drawMemeShot(r,b,time,this.reducedMotion)){c.restore();continue;}
    if(b.kind==='tornado'){this.drawTornado(r,b,time);c.restore();continue;}
@@ -148,6 +152,7 @@ export class WeaponVFX{
    if(drawZmdField(r,z,time)){c.restore();continue;}
    if(z.kind==='pelican'){drawPelican(r,z,time);c.restore();continue;}
    if(drawRitualField(r,z,time,s)){c.restore();continue;}
+   if(drawDragonLightField(r,z,time)){c.restore();continue;}
    if(drawSwordField(r,z,time,s)){c.restore();continue;}
    if(z.kind==='mine')this.drawMine(r,z,time);
    else if(z.kind==='turret')this.drawTurret(r,z,time);
@@ -175,7 +180,7 @@ export class WeaponVFX{
    }
    c.restore();
   }
-  for(const b of s.beams||[])this.drawBeam(r,b,time);
+  for(const b of s.beams||[])if(!drawUltraBeam(r,b,time))this.drawBeam(r,b,time);
  }
  drawMine(r,z,time){
   const c=r.ctx,scale=z.radius/100,charge=clamp(1-z.wait/.45),ready=z.wait<=0;

@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import { World, makePlayer } from '../lib/game.mjs';
 import { UPGRADES, RECIPES, forgeState, rollChoices, orbitBlades } from '../lib/equipment.mjs';
 const make=()=>new World([{id:'p'}],()=>.4);
-function ready(world, key){const p=world.s.players[0],r=RECIPES.find(r=>r.key===key);p.ranks[r.weapon]=5;p.ranks[r.item]=1;p.relics=1;p.count=5;p.orbit=5;p.nova=5;p.storm=5;return p;}
+function ready(world, key){const p=world.s.players[0],r=RECIPES.find(r=>r.key===key);p.ranks[r.weapon]=5;p.ranks[r.item]=1;p.relics=1;if(r.holdSeconds)p.lightBond=r.holdSeconds+.05;p.count=5;p.orbit=5;p.nova=5;p.storm=5;return p;}
 function enemy(id,x,y,hp=10000){return{id,x,y,hp,maxHp:hp,type:1,size:20,speed:0,hit:0,slow:0,orbitCd:0,phase:0};}
 test('all three recipe requirements are mandatory',()=>{
  for(const recipe of RECIPES.filter(r=>r.item)){
   const w=make(),p=ready(w,recipe.key);
   for(const missing of ['weapon','item','chest']){
    const ranks={...p.ranks};const relics=p.relics;
-   if(missing==='weapon')p.ranks[recipe.weapon]=4;if(missing==='item')p.ranks[recipe.item]=0;if(missing==='chest')p.relics=0;
+   if(missing==='weapon')p.ranks[recipe.weapon]=(recipe.weaponLevel||5)-1;if(missing==='item')p.ranks[recipe.item]=0;if(missing==='chest')p.relics=0;
    assert.equal(w.craft('p',recipe.key),false,recipe.key+missing);assert.deepEqual(p.evolutions,{});
    p.ranks=ranks;p.relics=relics;
   }
@@ -71,7 +71,7 @@ test('tempest chains to eight unique enemies and creates area bursts',()=>{
 });
 test('a complete evolved build remains bounded through a full run',()=>{
  const w=make(),p=w.s.players[0];p.hp=p.maxHp=100000;p.damage=120;p.count=p.orbit=p.nova=p.storm=5;p.magnet=900;
- for(const r of RECIPES.filter(r=>r.item)){p.ranks[r.weapon]=5;p.ranks[r.item]=1;p.relics++;assert.ok(w.craft('p',r.key));}
+ for(const r of RECIPES.filter(r=>r.item)){p.ranks[r.weapon]=5;p.ranks[r.item]=1;if(r.holdSeconds)p.lightBond=r.holdSeconds+.05;p.relics++;assert.ok(w.craft('p',r.key));}
  for(let i=0;i<362*60;i++){p.choices=[];w.step(1/60);}
  assert.ok(w.s.enemies.length<230);assert.ok(w.s.shots.length<100);assert.ok(w.s.effects.length<150);assert.ok(Number.isFinite(p.x));assert.ok(w.s.kills>100);
 });

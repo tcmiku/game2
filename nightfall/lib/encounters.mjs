@@ -1,3 +1,5 @@
+import {shrineInvulnerable,preventShrineDeath,shrineHurt} from './shrine-powers.mjs';
+import {ultraActive} from './dragon-light.mjs';
 import {stepDuskBullet} from './dusk-foes.mjs';
 import {stepBossAttack,bossMotion,stepBossHazard,drawBossWarnings,drawBossHazard} from './bosses.mjs';
 import {attackContact,cancelBullet,circleContact} from './counterfire.mjs';
@@ -12,8 +14,8 @@ export function rollElite(time,random){
  const r=random();return time>=600&&r<.2?3:time>=180&&r<.5?2:1;
 }
 export function hurtPlayer(w,p,damage){
- if(p.hp<=0||p.connected===false||p.hitCd>0||p.choices.length)return false;
- p.hp=Math.max(0,p.hp-damage*Math.max(.25,1-(p.ranks?.ward||0)*.08));p.hitCd=.65;w.effect(p.x,p.y,'hit',.25,55);w.events.push('hurt');return true;
+ if(shrineInvulnerable(p,w.s.time)||ultraActive(p,w.s.time)||p.hp<=0||p.connected===false||p.hitCd>0||p.choices.length)return false;
+ const amount=damage*Math.max(.25,1-(p.ranks?.ward||0)*.08);if(preventShrineDeath(w,p,amount))return true;p.hp=Math.max(0,p.hp-amount);shrineHurt(w,p);p.hitCd=.65;w.effect(p.x,p.y,'hit',.25,55);w.events.push('hurt');return true;
 }
 function bullet(w,e,angle,speed=210,damage=12,radius=10){
  w.s.hostile.push({id:w.nextId(),owner:e.id,sourceType:e.type,cancellable:e.type!==4&&e.type!==7,x:e.x,y:e.y-24,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,radius,damage:damage*(e.damageScale||1),life:6,kind:e.type===4?'thorn':'orb'});

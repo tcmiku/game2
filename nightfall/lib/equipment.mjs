@@ -1,6 +1,6 @@
 /** Equipment definitions shared by the host simulation and the interface. */
 export const WEAPON_LIMIT = 6;
-export const WEAPON_ATLAS_COLUMNS = 6, WEAPON_ATLAS_ROWS = 10;
+export const WEAPON_ATLAS_COLUMNS = 6, WEAPON_ATLAS_ROWS = 11;
 const weapon = (name, sub, detail, color, sprite) => ({name,sub,detail,color,sprite,icon:'blade',kind:'weapon',max:5});
 export const UPGRADES = {
  blade: weapon('月刃','扇形飞刃 · 连续穿透','飞刃数量 +1','#d6dec7',16),
@@ -38,6 +38,9 @@ export const UPGRADES = {
  bananacat:weapon('香蕉猫','抛掷落地 · 果皮滑倒','落地伤害与果皮数量提升','#dec578',63),
  elucidator:weapon('阐释者','黑银长剑 · 近身剑光','斩击伤害与范围提升','#c2cce3',68),
  darkrepulser:weapon('逐暗者','青碧长剑 · 远程剑气','剑气伤害与穿透提升','#92e3d6',69),
+ drogon:weapon('卓耿','龙蛋冲撞 · 往返撞击','冲撞伤害与速度提升','#bd9577',72),
+ lightrod:weapon('神光棒','聚光飞矢 · 穿透暗影','光矢伤害与穿透提升','#e9d895',74),
+ lightgene:{name:'光之遗传因子',sub:'光之共鸣 · 强化光能',detail:'光系伤害 +12%；与神光棒共同持有超过 3 分钟可觉醒',icon:'lightgene',sprite:75,color:'#b7dbea',kind:'item',max:3},
  renewal:{name:'复苏草',sub:'缓慢恢复生命',detail:'每秒恢复 0.3 生命',icon:'heart',color:'#9dccac',kind:'item',max:3,unlock:'herbalist',cost:35},
  ward:{name:'护心叶',sub:'减轻承受的伤害',detail:'受到伤害 -8%',icon:'ward',color:'#b7d5a2',kind:'item',max:3,unlock:'herbalist',cost:50},
  wisdom:{name:'星识残页',sub:'积累更多经验',detail:'经验获取 +15%',icon:'wisdom',color:'#c7b5e3',kind:'item',max:3,unlock:'scholar',cost:45},
@@ -61,6 +64,8 @@ export const weaponCooldown=(p,seconds)=>seconds/Math.max(.1,p.rate)*(1-(p.ranks
 export const WEAPONS = Object.keys(UPGRADES).filter(key=>UPGRADES[key].kind==='weapon');
 const union = (name, primary, secondary, sub, detail, color, sprite) => ({name,weapon:primary,weapons:[{key:primary,level:3},{key:secondary,level:3}],sub,detail,color,sprite});
 export const ARTIFACTS = {
+ wyvern:union('飞龙','drogon','ember','破壳振翼 · 龙焰掠袭','喷吐龙焰 · 俯冲抓击 · 自主追敌','#e4a075',73),
+ ultraman:{name:'超人力霸王',weapon:'lightrod',item:'lightgene',weaponLevel:1,itemLevel:1,holdSeconds:180,sub:'光之巨人',detail:'共同持有超过 3 分钟；右键变身 15 秒，无敌、自动光线、左键重拳，冷却 90 秒',color:'#c6e6ef',sprite:76},
  dualblades:union('二刀流','elucidator','darkrepulser','黑白双剑 · 星光轮舞','强化近身连斩与三重剑气；左键旋风 3.5 秒，移速 +65%，基础冷却 12 秒','#a9e7e3',70),
  memeking:{name:'meme之王',weapon:'spincat',weapons:[{key:'spincat',level:5},{key:'gugu',level:5},{key:'manbo',level:5},{key:'bananacat',level:5}],sub:'四梗加冕 · 万象狂欢',detail:'八方回旋猫群 · 六重冰音波 · 五列星骑冲锋 · 三连香蕉连爆',color:'#f1d58b',sprite:71},
  cataclysm:{name:'星旋猫团',weapon:'spincat',item:'haste',weaponLevel:5,itemLevel:1,sub:'群猫巡星',detail:'环形猫群 · 双程回旋穿透',color:'#bce1cf',sprite:64},
@@ -93,12 +98,13 @@ export function recipeParts(recipe){return recipe.weapons||[{key:recipe.weapon,l
 export function ownsWeapon(p,key){return !!p?.ranks?.[key]&&!p?.fused?.[key];}
 export function weaponLoadout(p){return WEAPONS.filter(key=>ownsWeapon(p,key));}
 export function forgeState(player,key){
- const recipe=ARTIFACTS[key];if(!recipe)return{ready:false,complete:false,weapon:false,item:false,chest:false,parts:[],blocked:false};
+ const recipe=ARTIFACTS[key];if(!recipe)return{ready:false,complete:false,weapon:false,item:false,chest:false,parts:[],blocked:false,holdSeconds:0,heldFor:0,holdMet:true,holdRemaining:0};
  const complete=player?.evolutions?.[recipe.weapon]===key;
  const parts=recipeParts(recipe).map(part=>({...part,met:(player?.ranks?.[part.key]||0)>=part.level}));
  const blocked=parts.some(part=>UPGRADES[part.key].kind==='weapon'&&(player?.fused?.[part.key]||player?.evolutions?.[part.key]))&&!complete;
  const chest=(player?.relics||0)>0,weapon=parts[0].met,item=parts[1].met;
- return{parts,weapon,item,chest,blocked,complete,ready:parts.every(p=>p.met)&&chest&&!complete&&!blocked};
+ const holdSeconds=recipe.holdSeconds||0,heldFor=Math.max(0,player?.lightBond||0),holdMet=!holdSeconds||heldFor>holdSeconds;
+ return{parts,weapon,item,chest,blocked,complete,holdSeconds,heldFor,holdMet,holdRemaining:holdMet?0:Math.max(1,Math.ceil(holdSeconds-heldFor)),ready:parts.every(p=>p.met)&&holdMet&&chest&&!complete&&!blocked};
 }
 /** Ready recipes stay above locked entries; completed relics remain at the end. */
 export function prioritizedRecipes(player,recipes=RECIPES){

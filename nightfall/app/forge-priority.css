@@ -5,3 +5,5 @@
 .recipe-parts.multi>div>b{display:none}
 .recipe-parts.multi small{flex-shrink:0;margin-left:auto}
 @media(min-width:441px) and (max-width:760px){.recipe-parts.multi{grid-template-columns:1fr}}
+
+.recipe-resonance{position:relative;min-height:29px;margin:2px 0 9px;padding:4px 7px 7px;color:#b7cdd3;border:1px solid #8aadb536;font-size:11px;overflow:hidden}.recipe-resonance i{position:absolute;left:0;bottom:0;height:2px;background:#a5d6e1}.recipe-resonance.met{color:#e4dbb5;border-color:#baa87766}.recipe-resonance.met i{background:#d9c78d}

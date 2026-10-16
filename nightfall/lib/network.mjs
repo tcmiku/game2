@@ -1,3 +1,4 @@
+import {hasShrine,DODGE,moveDodge} from './shrine-powers.mjs';
 import {ARENA_W,ARENA_H,collideDestructibles} from './frontier.mjs';
 import {swordMoveMultiplier} from './dual-swords.mjs';
 // Keep requests serial and schedule from their start, so latency isn't added to
@@ -62,7 +63,7 @@ function direction(input){let x=Number(input.x)||0,y=Number(input.y)||0;const le
 /** Presentation only. Damage, pickups, choices and death always use host state. */
 export class RemoteView{
  constructor(){this.reset();}
- reset(){this.latest=null;this.previous=null;this.arrived=0;this.interval=.05;this.jitter=0;this.maps={};this.history=[];this.snapshots=[];this.local=null;this.target=null;this.visualTime=0;this.clockReady=false;}
+ reset(){this.latest=null;this.previous=null;this.arrived=0;this.interval=.05;this.jitter=0;this.maps={};this.history=[];this.snapshots=[];this.local=null;this.target=null;this.visualTime=0;this.clockReady=false;this.localDash=null;this.dodgeSeq=0;this.finishedDash=0;this.dodgeReady=0;}
  receive(state,id,now){
   if(!state?.players)return;
   if(this.latest&&(state.time<this.latest.time||state.runId!==this.latest.runId||this.id!==id))this.reset();
@@ -72,11 +73,17 @@ export class RemoteView{
   this.snapshots.push({state,maps:Object.fromEntries(['players','enemies','shots','hostile','zones','beams','gems'].map(name=>[name,new Map((state[name]||[]).map(e=>[e.id,e]))]))});if(this.snapshots.length>8)this.snapshots.shift();
   const me=state.players.find(p=>p.id===id);
   if(!me)return;
+  if(state.upgradePaused||state.status!=='playing'||me.hp<=0&&!me.ghost||me.connected===false){this.localDash=null;this.history=[];}
+  else if(me.hp<=0){this.localDash=null;this.history=this.history.filter(h=>!h.dash);}
+  else if((me.dashSeq||0)>0){
+   if(!(me.dashLeft>0)){this.finishedDash=Math.max(this.finishedDash,me.dashSeq);if(this.localDash?.seq<=me.dashSeq)this.localDash=null;this.history=this.history.filter(h=>!h.dash||h.seq>me.dashSeq);}
+   else if(!this.localDash&&me.dashSeq>this.finishedDash)this.localDash={seq:me.dashSeq,dx:me.dashDx,dy:me.dashDy,left:me.dashLeft,at:this.visualTime};
+  }
   if(!this.local||me.hp<=0&&!me.ghost||state.upgradePaused||state.status!=='playing')this.local={x:me.x,y:me.y};
   const target={x:me.x,y:me.y},ack=me.inputAt+me.inputAge;
   // Replay only recent, unacknowledged local movement. The timestamp belongs
   // to the guest's clock; inputAge is elapsed simulation time on the host.
-  if((me.hp>0||me.ghost)&&!state.upgradePaused&&state.status==='playing'&&Number.isFinite(ack))for(const h of this.history){const dt=Math.max(0,h.to-Math.max(h.from,ack,now-.3));target.x+=h.x*me.speed*(me.ghost?.85:(me.snared?.55:1)*swordMoveMultiplier(me,state.time))*dt;target.y+=h.y*me.speed*(me.ghost?.85:(me.snared?.55:1)*swordMoveMultiplier(me,state.time))*dt;}
+  if((me.hp>0||me.ghost)&&!state.upgradePaused&&state.status==='playing'&&Number.isFinite(ack))for(const h of this.history){const dt=Math.max(0,h.to-Math.max(h.from,ack,now-.3));const speed=me.speed*(me.ghost?.85:(me.snared?.55:1)*swordMoveMultiplier(me,state.time));target.x+=(h.dash?h.vx:h.x*speed)*dt;target.y+=(h.dash?h.vy:h.y*speed)*dt;}
   target.x=clamp(target.x,100,(this.latest?.width||ARENA_W)-100);target.y=clamp(target.y,100,(this.latest?.height||ARENA_H)-100);if(me.hp>0)collideDestructibles(target,state.props);this.target=target;
   if(Math.hypot(target.x-this.local.x,target.y-this.local.y)>180)this.local={...target};
  }
@@ -93,10 +100,22 @@ export class RemoteView{
  sample(input,now,dt){
   const s=this.latest;if(!s)return null;
   dt=clamp(dt,0,.05);const me=s.players.find(p=>p.id===this.id),fresh=now-this.arrived<clamp(this.interval*3+this.jitter*2,.35,1.2);
-  const {x,y}=direction(input),moving=!!(fresh&&s.status==='playing'&&!s.upgradePaused&&(me?.hp>0||me?.ghost));
+  const {x,y}=direction(input),moving=!!(fresh&&s.status==='playing'&&!s.upgradePaused&&me?.connected!==false&&(me?.hp>0||me?.ghost));
+  if((input?.dashSeq||0)>this.dodgeSeq){
+   this.dodgeSeq=input.dashSeq;
+   if(moving&&me.hp>0&&hasShrine(me,'stride')&&input.dashSeq>(me.dashSeq||0)&&s.time>=(me.dashReadyAt||0)&&now>=this.dodgeReady&&!this.localDash){
+    const dx=x||y?x:me.lastMoveX??me.face??1,dy=x||y?y:me.lastMoveY??0,length=Math.hypot(dx,dy)||1;
+    this.localDash={seq:input.dashSeq,dx:dx/length,dy:dy/length,left:DODGE.duration,at:this.visualTime};this.dodgeReady=now+DODGE.cooldown;
+   }
+  }
   if(moving){
-   this.history.push({from:now-dt,to:now,x,y});this.history=this.history.filter(h=>h.to>now-1);
-   const dx=x*me.speed*(me.ghost?.85:(me.snared?.55:1)*swordMoveMultiplier(me,s.time+Math.min(now-this.arrived,.3)))*dt,dy=y*me.speed*(me.ghost?.85:(me.snared?.55:1)*swordMoveMultiplier(me,s.time+Math.min(now-this.arrived,.3)))*dt;this.local.x+=dx;this.local.y+=dy;if(this.target){this.target.x=clamp(this.target.x+dx,100,(this.latest?.width||ARENA_W)-100);this.target.y=clamp(this.target.y+dy,100,(this.latest?.height||ARENA_H)-100);}
+   let dx,dy;const dash=this.localDash;
+   if(dash){const point={...this.local,dashDx:dash.dx,dashDy:dash.dy,dashLeft:dash.left};moveDodge(point,s.props,dt,s.time);dx=point.x-this.local.x;dy=point.y-this.local.y;dash.left=point.dashLeft;
+    this.history.push({from:now-dt,to:now,dash:true,seq:dash.seq,vx:dt?dx/dt:0,vy:dt?dy/dt:0});
+    if(dash.left<=0){this.finishedDash=Math.max(this.finishedDash,dash.seq);this.localDash=null;}
+   }else{const speed=me.speed*(me.ghost?.85:(me.snared?.55:1)*swordMoveMultiplier(me,s.time+Math.min(now-this.arrived,.3)));dx=x*speed*dt;dy=y*speed*dt;this.history.push({from:now-dt,to:now,x,y});}
+   this.history=this.history.filter(h=>h.to>now-1);this.local.x+=dx;this.local.y+=dy;
+   if(this.target){this.target.x=clamp(this.target.x+dx,100,(s.width||ARENA_W)-100);this.target.y=clamp(this.target.y+dy,100,(s.height||ARENA_H)-100);}
   }
   if(this.local&&this.target){const blend=1-Math.exp(-12*dt);this.local.x=clamp(this.local.x+(this.target.x-this.local.x)*blend,100,(this.latest?.width||ARENA_W)-100);this.local.y=clamp(this.local.y+(this.target.y-this.local.y)*blend,100,(this.latest?.height||ARENA_H)-100);}
   if(me?.hp>0&&this.local)collideDestructibles(this.local,s.props);
@@ -108,7 +127,10 @@ export class RemoteView{
   for(let i=1;i<this.snapshots.length;i++){this.motionTo=this.snapshots[i];this.motionFrom=this.snapshots[i-1];if(this.motionTo.state.time>=this.visualTime)break;}
   const view={...s,visualTime:this.visualTime};
   for(const name of ['players','enemies','shots','hostile','zones','beams','gems'])view[name]=s.upgradePaused?s[name]:(s[name]||[]).map(e=>this.motion(e,name,view.visualTime));
-  view.players=view.players.map(p=>p.id===this.id&&this.local?{...p,...this.local,moving:moving&&Math.hypot(x,y)>.1,face:moving&&x?(x<0?-1:1):p.face}:p);
+  view.players=view.players.map(p=>p.id===this.id&&this.local?{...p,...this.local,...(this.localDash?{dashAt:this.localDash.at,dashUntil:this.visualTime+this.localDash.left,dashDx:this.localDash.dx,dashDy:this.localDash.dy}:this.finishedDash>=(p.dashSeq||0)?{dashUntil:0}:{}),moving:moving&&(!!this.localDash||Math.hypot(x,y)>.1),face:this.localDash?.dx?this.localDash.dx<0?-1:1:moving&&x?(x<0?-1:1):p.face}:p);
+  // The dragon is nested under its player, but still follows the same bounded
+  // presentation clock as standalone projectiles rather than stepping at 20 Hz.
+  view.players=view.players.map(p=>{const d=p.dragon,a=this.motionFrom?.maps.players?.get(p.id)?.dragon,b=this.motionTo?.maps.players?.get(p.id)?.dragon,span=(this.motionTo?.state.time||0)-(this.motionFrom?.state.time||0);if(!d||a?.id!==d.id||b?.id!==d.id||span<=0||s.upgradePaused)return p;const t=clamp((view.visualTime-this.motionFrom.state.time)/span,0,1+.12/span);return{...p,dragon:{...d,x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t}};});
   // Projectiles and short effects also move/expire between polls.
   const ahead=Math.max(0,view.visualTime-s.time);
   for(const name of ['shots','hostile','effects']){const out=[];for(const e of view[name]||[]){if(e.life!==undefined&&e.life-ahead<=0)continue;let item=e;if(ahead>0){item={...e,...(e.life!==undefined?{life:e.life-ahead}:{})};if(name!=='effects'&&!this.motionFrom?.maps[name]?.has(e.id)&&!['flask','bananacat'].includes(e.kind)&&e.active!==false){item.x+=(e.vx||0)*ahead;item.y+=(e.vy||0)*ahead;}}out.push(item);}view[name]=out;}

@@ -56,7 +56,7 @@ export function SharedUpgradePanel({state,playerId,members,favorites,onChoose,on
       <button className={`draft-card ${favorite?'favorite':''}`} disabled={disabled} onClick={()=>{setPending(card.key);onChoose(card.key);}} aria-label={`${u.name}${owner?`，已由 P${owner.index+1} 领取`:`，${card.key==='mend'?'生命补给':rank?`等级 ${rank} 提升至 ${rank+1}`:'初次获得'}${!eligible?'，当前不可领取':''}`}${favorite?'，收藏神器材料':''}`}>
        <div className="draft-card-top"><span><i/>{owner?'已领取':card.key==='mend'?'月露补给':rank?'精进兵装':u.kind==='weapon'?'新武器':'新道具'}{favorite&&<Star className="draft-favorite-star" size={11} fill="currentColor" aria-hidden="true"/>}</span><kbd aria-label={`快捷键 ${shortcuts[i]}`}>{shortcuts[i]}</kbd></div>
        <div className="draft-card-main">
-        <div className="draft-weapon-seal" aria-hidden="true">{u.kind==='weapon'?<WeaponIcon id={card.key} size={48}/>:<ItemIcon size={28} strokeWidth={1.4}/>}</div>
+        <div className="draft-weapon-seal" aria-hidden="true">{u.sprite?<WeaponIcon id={card.key} size={48}/>:<ItemIcon size={28} strokeWidth={1.4}/>}</div>
         <div className="draft-weapon-name"><h3>{u.name}</h3><span className="draft-rank">{card.key==='mend'?'恢复生命':owner?`Lv.${shownRank} · 已领取`:rank?`Lv.${rank} → ${rank+1}`:'初次获得'}</span>{card.key!=='mend'&&<div className="draft-rank-pips" aria-label={`${owner?'当前':'领取后'}等级 ${owner?shownRank:rank+1}，最高 ${upgradeMax(owner||me,card.key)} 级`}>{Array.from({length:upgradeMax(owner||me,card.key)},(_,j)=><i key={j} className={j<(owner?shownRank:rank)?'lit':!owner&&j===rank?'next':''}/>)}</div>}</div>
        </div>
        <p>{u.kind==='weapon'&&(owner||!rank)?u.sub:u.detail}</p>

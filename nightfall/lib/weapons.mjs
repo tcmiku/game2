@@ -1,3 +1,4 @@
+import {stepDragonLightArsenal,stepDragonLightField} from './dragon-light.mjs';
 import {stepMemeArsenal,stepMemeShot,stepMemeField} from './meme-arsenal.mjs';
 import {castZmd,stepZmdField} from './zmd.mjs';
 import {castPelican,stepPelican} from './pelican.mjs';
@@ -56,6 +57,7 @@ export function stepArsenal(w,p,dt,target){
  stepNewArsenal(w,p,dt,target,cast);
  stepRitualArsenal(w,p,dt,target,cast);
  stepSwordArsenal(w,p,target,cast);
+ stepDragonLightArsenal(w,p,dt,target,cast);
  if(!ownsWeapon(p,'familiar')){p.familiars=[];return;}
  const evolved=p.evolutions.familiar==='seraph',count=evolved?3:Math.ceil(p.ranks.familiar/2);
  p.familiars||=[];
@@ -108,6 +110,7 @@ export function stepWeaponEntities(w,dt){
   const p=s.players.find(p=>p.id===z.owner);z.life-=dt;z.wait-=dt;z.tick-=dt;if(!p||p.hp<=0||p.connected===false){z.life=0;continue;}
   if(z.kind==='pelican'){stepPelican(w,z,p,dt);continue;}
   if(z.wait>0)continue;
+  if(stepDragonLightField(w,z,p))continue;
   if(stepSwordField(w,z,p))continue;
   if(stepMemeField(w,z,p,dt))continue;
   if(stepZmdField(w,z,p,dt))continue;
@@ -125,7 +128,8 @@ export function stepWeaponEntities(w,dt){
   }
  }
  for(const b of s.beams){
-  b.life-=dt;b.tick-=dt;const p=s.players.find(p=>p.id===b.owner);if(!p||p.hp<=0||p.connected===false){b.life=0;continue;}b.x=p.x;b.y=p.y-15;
+  b.life-=dt;b.tick-=dt;const p=s.players.find(p=>p.id===b.owner);if(!p||p.hp<=0||p.connected===false){b.life=0;continue;}b.x=p.x+(b.kind==='ultralight'?45*(p.face||1):0);b.y=p.y-(b.kind==='ultralight'?94:15);
+  if(b.kind==='ultralight'&&(p.ultraUntil||0)<=s.time){b.life=0;continue;}
   if(b.follow){let target=w.targets().find(e=>e.id===b.target&&e.hp>0);if(!target)target=w.targets().find(e=>e.hp>0&&distance(e,p)<b.length);if(target){b.target=target.id;b.angle+=angleDelta(aim(b,target),b.angle)*Math.min(1,dt*7);}}
   w.guard(p,b.weapon,{kind:'line',x:b.x,y:b.y,tx:b.x+Math.cos(b.angle)*b.length,ty:b.y+Math.sin(b.angle)*b.length,radius:b.width/2});
   if(b.tick<=0){b.tick=.18;const dx=Math.cos(b.angle),dy=Math.sin(b.angle);

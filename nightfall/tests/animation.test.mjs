@@ -26,7 +26,7 @@ test('network animation clock fills poll gaps, caps prediction and resets for a 
  assert.equal(c.update(10.2,.016,true),10.2);assert.equal(c.update(0,.016,true),0);assert.equal(c.update(0,.05,false),0,'solo pause never advances animation');assert.equal(c.update(NaN,.05,true),0);
 });
 test('actual weapon casts stamp bounded animation state without changing damage or cooldowns',()=>{
- for(const key of WEAPONS.filter(k=>!['orbit','familiar'].includes(k))){
+ for(const key of WEAPONS.filter(k=>!['orbit','familiar','drogon'].includes(k))){
   const w=new World([{id:'p',weapon:key}],()=>.4),p=w.s.players[0];w.spawnCd=1e5;p.novaCd=p.stormCd=0;w.s.enemies=[enemy(900,p.x+110,p.y)];w.step(.01);
   assert.equal(p.attackKind,key,key);assert.equal(p.attackAt,w.s.time);assert.ok(Number.isFinite(p.attackAngle));assert.equal(actorPose(p,w.s.time,{player:true}).mode,'attack');
   const at=p.attackAt;w.castPose(p,'bow',w.s.enemies[0]);assert.equal(p.attackAt,at);assert.equal(p.attackKind,key,'simultaneous weapons cannot restart the pose each frame');
