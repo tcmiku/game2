@@ -1,3 +1,4 @@
+import {arenaSpawn} from '../lib/arena.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World} from '../lib/game.mjs';
@@ -31,7 +32,7 @@ test('all meme attacks stop on owner death or disconnect without changing damage
  for(const key of ['spincat','gugu','manbo','bananacat'])for(const mode of ['dead','offline']){const {w,p}=scene(key);foe(w,p.x+180,p.y);w.step(.05);const damage=p.stats[key].damage;if(mode==='dead'){w.s.players.push({...p,id:'ally',x:1800,ranks:{},stats:{},cooldowns:{}});p.hp=0;}else p.connected=false;advance(w,60);assert.equal(p.stats[key].damage,damage,key);assert.equal(w.s.shots.length,0);assert.equal(w.s.zones.length,0);}
 });
 test('each new run scatters seventy props with safe spawns, spacing, unique IDs and bounded fallback',()=>{
- for(const random of [rng(42),rng(43),()=>0,()=>.5,()=>.999]){const props=createDestructibles(random);assert.equal(props.length,70);assert.equal(new Set(props.map(p=>p.id)).size,70);for(const [i,p] of props.entries()){assert.ok(p.x>=110&&p.x<=ARENA_W-110&&p.y>=110&&p.y<=ARENA_H-110);for(let slot=0;slot<4;slot++)assert.ok(Math.hypot(p.x-1200-slot*65,p.y-800)>=239);for(const q of props.slice(i+1))assert.ok(Math.hypot(q.x-p.x,q.y-p.y)>=104);}}
+ for(const random of [rng(42),rng(43),()=>0,()=>.5,()=>.999]){const props=createDestructibles(random);assert.equal(props.length,70);assert.equal(new Set(props.map(p=>p.id)).size,70);for(const [i,p] of props.entries()){assert.ok(p.x>=110&&p.x<=ARENA_W-110&&p.y>=110&&p.y<=ARENA_H-110);for(let slot=0;slot<4;slot++)assert.ok(Math.hypot(p.x-arenaSpawn(slot).x,p.y-arenaSpawn(slot).y)>=239);for(const q of props.slice(i+1))assert.ok(Math.hypot(q.x-p.x,q.y-p.y)>=104);}}
  assert.notDeepEqual(createDestructibles(rng(42)),createDestructibles(rng(43)));assert.deepEqual(createDestructibles(rng(42)),createDestructibles(rng(42)));
 });
 test('randomized props and live meme attacks survive authoritative deltas, guest snapshots and takeover',()=>{

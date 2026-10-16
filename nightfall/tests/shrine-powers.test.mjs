@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {World} from '../lib/game.mjs';
+import {World,W} from '../lib/game.mjs';
 import {newProfile,expeditionBoons} from '../lib/camp.mjs';
 import {SHRINE_POWERS} from '../lib/sanctuary.mjs';
 import {hurtPlayer} from '../lib/encounters.mjs';
@@ -28,7 +28,7 @@ test('dash invulnerability prevents damage without consuming the once-per-run em
 });
 test('dash sweeps stop at solid objects and respect arena limits',()=>{
  const {w,p}=scene({stride:1});w.s.props=[{id:-1,x:p.x+80,y:p.y,size:20,hp:100}];const start=p.x;w.input('p',{dashSeq:1,x:1});steps(w,11);assert.ok(p.x<start+50,'solid scenery cannot be tunneled through');
- const edge=scene({stride:1});edge.p.x=3490;edge.w.input('p',{dashSeq:1,x:1});steps(edge.w,11);assert.ok(edge.p.x<=3500);
+ const edge=scene({stride:1});edge.p.x=W-110;edge.w.input('p',{dashSeq:1,x:1});steps(edge.w,11);assert.ok(edge.p.x<=W-100);
 });
 test('ember guard prevents one lethal hit, grants 1.5 seconds protection and is spent for the run',()=>{
  const {w,p}=scene();assert.equal(hurtPlayer(w,p,1e6),true);assert.equal(p.hp,p.maxHp*.25);assert.equal(p.emberGuardUsed,true);assert.equal(hurtPlayer(w,p,1e6),false);steps(w,80);p.hitCd=0;assert.equal(hurtPlayer(w,p,1e6),true);assert.equal(p.hp,0);

@@ -1,5 +1,7 @@
 import {ownsWeapon,weaponScale,weaponCooldown} from './equipment.mjs';
+import {ARENA_W,ARENA_H} from './arena.mjs';
 import {segmentDistance} from './counterfire.mjs';
+import {drawWyvern,drawWyvernFire,drawWyvernClaw} from './wyvern-presentation.mjs';
 const tau=Math.PI*2,clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 export const ULTRA_SKILL={duration:15,cooldown:90,punchCooldown:.45,height:216};
 export const hasUltra=p=>ownsWeapon(p,'lightrod')&&p.evolutions?.lightrod==='ultraman';
@@ -42,13 +44,13 @@ export function stepDragonLightArsenal(w,p,dt,target,cast){
   if(d.phase==='orbit'){
    const a=w.s.time*.85,tx=p.x-70+Math.cos(a)*20,ty=p.y-25+Math.sin(a)*28;
    d.x+=(tx-d.x)*Math.min(1,dt*7);d.y+=(ty-d.y)*Math.min(1,dt*7);
-   if(target&&d.cooldown<=0){d.angle=aim(d,target);d.phase='charge';d.left=clamp(dist(d,target)/(evolved?700:480)+.13,.2,.8);d.hit=[];}
+   if(target&&d.cooldown<=0){d.angle=aim(d,target);d.phase='charge';d.left=clamp(dist(d,target)/(evolved?700:480)+.13,.2,.8);d.chargeAt=w.s.time;d.chargeSpan=d.left;d.hit=[];}
   }else if(d.phase==='charge'){
    const ox=d.x,oy=d.y,speed=(evolved?720:470+rank*26);
-   d.x=clamp(d.x+Math.cos(d.angle)*speed*dt,70,(w.s.width||3600)-70);d.y=clamp(d.y+Math.sin(d.angle)*speed*dt,70,(w.s.height||2400)-70);d.left-=dt;
+   d.x=clamp(d.x+Math.cos(d.angle)*speed*dt,70,(w.s.width||ARENA_W)-70);d.y=clamp(d.y+Math.sin(d.angle)*speed*dt,70,(w.s.height||ARENA_H)-70);d.left-=dt;
    const radius=(evolved?38:22)*weaponScale(p);w.guard(p,'drogon',{kind:'line',x:ox,y:oy,tx:d.x,ty:d.y,radius});
    for(const e of w.targets())if(e.hp>0&&!d.hit.includes(e.id)&&segmentDistance(e.x,e.y,ox,oy,d.x,d.y)<e.size+radius){d.hit.push(e.id);w.damage(e,p.damage*(evolved?3.5+rank*.55:1.4+rank*.35),p,d,'drogon');if(evolved)field(w,p,'dragonclaw',{x:e.x,y:e.y,angle:d.angle,radius:55,damage:0,life:.22});}
-   if(d.left<=0)d.phase='return';
+   if(d.left<=0){d.phase='return';d.returnAt=w.s.time;}
   }else{
    const to={x:p.x-65,y:p.y-25},distance=dist(d,to),step=Math.min(distance,(evolved?580:420)*dt),a=aim(d,to);d.x+=Math.cos(a)*step;d.y+=Math.sin(a)*step;
    if(distance<30){d.phase='orbit';d.cooldown=weaponCooldown(p,evolved?1.3:1.8);}
@@ -87,10 +89,10 @@ function sprite(r,column,row,x,y,size,face=1,angle=0){
 }
 export function drawDragonCompanion(r,p,time){
  const d=p.dragon;if(!d||p.hp<=0||p.connected===false||!ownsWeapon(p,'drogon'))return;
- const c=r.ctx,reduced=r.feedback.reducedMotion,charging=d.phase==='charge',facing=Math.cos(d.angle||0)<0?-1:1;
+ const c=r.ctx,reduced=r.feedback.reducedMotion,charging=d.phase==='charge';
  c.save();c.globalAlpha=r.weaponFX.opacity(p.id);c.fillStyle='#040c11';c.globalAlpha*=.35;c.beginPath();c.ellipse(d.x,d.y+10,d.evolved?48:20,d.evolved?15:8,0,0,tau);c.fill();c.globalAlpha=r.weaponFX.opacity(p.id);
- const frame=d.evolved?(charging?5:(d.breathUntil||0)>time?4:2+(reduced?0:Math.floor(time*7)%2)):charging?1:0;
- sprite(r,frame,0,d.x,d.y+(d.evolved?-15+(reduced?0:Math.sin(time*5)*4):0),d.evolved?180:68,d.evolved?facing:1,!d.evolved&&charging&&!reduced?Math.sin(time*20)*.25:0);
+ if(d.evolved)drawWyvern(r,d,p,time);
+ else sprite(r,charging?1:0,0,d.x,d.y,68,1,charging&&!reduced?Math.sin(time*20)*.25:0);
  c.restore();
 }
 export function drawUltraPlayer(r,p,time){
@@ -110,18 +112,11 @@ export function drawDragonLightShot(r,b){
 }
 export function drawDragonLightField(r,z,time){
  if(!['dragonfire','dragonclaw','ultrapunch'].includes(z.kind))return false;
- const c=r.ctx,reduced=r.feedback.reducedMotion,t=clamp(1-z.life/z.max,0,1);c.save();c.translate(z.x,z.y);c.rotate(z.angle||0);
+ const c=r.ctx,t=clamp(1-z.life/z.max,0,1);c.save();c.translate(z.x,z.y);c.rotate(z.angle||0);
  if(z.kind==='dragonfire'){
-  const length=z.radius;
-  for(let i=0;i<16;i++){
-   const q=(i+.5)/16,x=q*length,width=Math.max(4,q*length*.34),j=reduced?0:Math.sin(time*30+i*3)*width*.22;
-   c.fillStyle=i%3?'#c56b414d':'#ec9d5966';c.fillRect(Math.round(x/4)*4,Math.round((-width+j)/4)*4,length/12,width*2);
-   c.fillStyle=i%2?'#f5c27e':'#e49350';c.fillRect(Math.round(x/4)*4,Math.round((-width*.4+j)/4)*4,18,width*.8+4);
-   c.fillStyle='#ffe9b4';c.fillRect(Math.round(x/4)*4,Math.round(j/4)*4,12,4);
-  }
+  drawWyvernFire(r,z,time);
  }else if(z.kind==='dragonclaw'){
-  c.strokeStyle='#f0c9a5';c.lineWidth=3;c.globalAlpha=1-t;
-  for(let i=-1;i<=1;i++){c.beginPath();c.moveTo(-22,i*12-18);c.lineTo(25,i*12+18);c.stroke();}
+  drawWyvernClaw(r,z);
  }else{
   c.globalAlpha=1-t;c.strokeStyle='#c9e9ef';c.lineWidth=9;c.beginPath();c.arc(0,0,z.radius*.85,-.7,.7);c.stroke();c.strokeStyle='#fff7e1';c.lineWidth=2;c.beginPath();c.arc(0,0,z.radius*.91,-.65,.65);c.stroke();
   c.fillStyle='#93c2d35c';c.fillRect(40,-22,z.radius-40,44);

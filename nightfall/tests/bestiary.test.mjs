@@ -44,7 +44,7 @@ test('all enemy types preserve twelve logical poses; the existing native atlas s
 });
 test('new enemies, elites, hazards and attack timestamps serialize for four players',()=>{
  const w=new World(Array.from({length:4},(_,i)=>({id:String(i)})),()=>.42);w.spawnCd=1e9;for(const p of w.s.players){p.ranks={};p.hp=p.maxHp=100000;}
- for(const type of Object.keys(ENEMY_TYPES).map(Number)){const e=w.spawn(type,2);e.x=1250;e.y=800;e.speed=0;e.skillCd=0;}
+ for(const type of Object.keys(ENEMY_TYPES).map(Number)){const e=w.spawn(type,2);e.x=w.s.players[0].x+50;e.y=w.s.players[0].y;e.speed=0;e.skillCd=0;}
  advance(w,30);const state=JSON.parse(JSON.stringify(w.s));for(const type of Object.keys(ENEMY_TYPES).map(Number)){const e=state.enemies.find(e=>e.type===type);assert.ok(e);assert.equal(e.elite,2);assert.ok(Number.isFinite(e.attackAt));}
  assert.ok(state.hostile.some(b=>b.kind==='bolt'));assert.ok(state.hazards.some(h=>h.kind==='spores'));assert.ok(state.enemies.some(e=>e.summoner));assert.ok(state.hostile.length<=160&&state.hazards.length<=48&&state.enemies.length<=220);
 });

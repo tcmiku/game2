@@ -38,8 +38,8 @@ test('every weapon family can damage an environmental object using its real atta
  }
 });
 test('the expanded arena, client movement prediction and authoritative checkpoints agree beyond the old boundary',()=>{
- assert.equal(W*H/(2400*1600),2.25);const {w,p}=scene('blade');p.x=2800;p.y=1900;p.speed=1000;w.input('p',{x:1,y:1});for(let i=0;i<50;i++)w.step(.05);assert.ok(p.x>2400&&p.y>1600);assert.ok(p.x<=W-100&&p.y<=H-100);
- const state=unpackSnapshot(packSnapshot(w.checkpoint(),{authoritative:true})),remote=new RemoteView();remote.receive(state,p.id,0);const shown=remote.sample({x:1,y:1},.05,.05);assert.ok(shown.players[0].x>2400&&shown.players[0].y>1600);assert.equal(state.width,W);assert.equal(World.restore(state).s.height,H);
+ assert.equal(W*H/(3600*2400),2.25);const {w,p}=scene('blade');p.x=4200;p.y=2800;p.speed=1000;w.input('p',{x:1,y:1});for(let i=0;i<50;i++)w.step(.05);assert.ok(p.x>3600&&p.y>2400);assert.ok(p.x<=W-100&&p.y<=H-100);
+ const state=unpackSnapshot(packSnapshot(w.checkpoint(),{authoritative:true})),remote=new RemoteView();remote.receive(state,p.id,0);const shown=remote.sample({x:1,y:1},.05,.05);assert.ok(shown.players[0].x>3600&&shown.players[0].y>2400);assert.equal(state.width,W);assert.equal(World.restore(state).s.height,H);
  const legacy=packSnapshot(w.s);delete legacy.entities.props;assert.deepEqual(unpackSnapshot(legacy).props,[]);
 });
 test('experience value determines four distinct colors and increasing visual size, including consolidated gems',()=>{

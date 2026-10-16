@@ -19,11 +19,11 @@ export function stepDodge(w,p,input){
  p.dashStartX=p.x;p.dashStartY=p.y;w.events.push('shoot');
 }
 /** Swept substeps keep the dash out of solid scenery and inside the arena. */
-export function moveDodge(p,props,dt,time){
+export function moveDodge(p,props,dt,time,bounds={}){
  if(!(p.dashLeft>0))return false;
  const used=Math.min(dt,p.dashLeft),distance=DODGE.distance/DODGE.duration*used,steps=Math.max(1,Math.ceil(distance/8)),stride=distance/steps;
  for(let i=0;i<steps;i++){
-  const x=clamp(p.x+p.dashDx*stride,100,ARENA_W-100),y=clamp(p.y+p.dashDy*stride,100,ARENA_H-100);p.x=x;p.y=y;collideDestructibles(p,props);
+  const x=clamp(p.x+p.dashDx*stride,100,(bounds.width||ARENA_W)-100),y=clamp(p.y+p.dashDy*stride,100,(bounds.height||ARENA_H)-100);p.x=x;p.y=y;collideDestructibles(p,props);
   if(Math.hypot(p.x-x,p.y-y)>.5){p.dashLeft=0;p.dashUntil=time;return true;}
  }
  p.dashLeft=Math.max(0,p.dashLeft-used);if(p.dashLeft<1e-8)p.dashLeft=0;p.moving=true;if(p.dashDx)p.face=p.dashDx<0?-1:1;

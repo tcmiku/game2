@@ -110,7 +110,7 @@ export class RemoteView{
   }
   if(moving){
    let dx,dy;const dash=this.localDash;
-   if(dash){const point={...this.local,dashDx:dash.dx,dashDy:dash.dy,dashLeft:dash.left};moveDodge(point,s.props,dt,s.time);dx=point.x-this.local.x;dy=point.y-this.local.y;dash.left=point.dashLeft;
+   if(dash){const point={...this.local,dashDx:dash.dx,dashDy:dash.dy,dashLeft:dash.left};moveDodge(point,s.props,dt,s.time,s);dx=point.x-this.local.x;dy=point.y-this.local.y;dash.left=point.dashLeft;
     this.history.push({from:now-dt,to:now,dash:true,seq:dash.seq,vx:dt?dx/dt:0,vy:dt?dy/dt:0});
     if(dash.left<=0){this.finishedDash=Math.max(this.finishedDash,dash.seq);this.localDash=null;}
    }else{const speed=me.speed*(me.ghost?.85:(me.snared?.55:1)*swordMoveMultiplier(me,s.time+Math.min(now-this.arrived,.3)));dx=x*speed*dt;dy=y*speed*dt;this.history.push({from:now-dt,to:now,x,y});}

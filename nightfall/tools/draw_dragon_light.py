@@ -21,41 +21,10 @@ def egg(charge=False):
  return im
 
 def dragon(frame=0):
- im=Image.new('RGBA',(128,128));d=ImageDraw.Draw(im);lift=frame%2*10
- # Broad leather wing membranes; two hind legs and wing arms form a wyvern.
- d.polygon([(54,70),(23,32-lift),(8,16),(11,52),(25,48),(21,71),(38,61),(35,84),(58,78)],fill=INK)
- d.polygon([(53,67),(24,34-lift),(12,23),(15,47),(28,44),(27,63),(39,56),(40,75)],fill='#6d3945')
- d.polygon([(55,68),(79,25+lift),(106,10),(102,38),(118,39),(99,54),(113,66),(87,69),(78,84)],fill=INK)
- d.polygon([(60,64),(80,28+lift),(101,17),(97,41),(109,42),(93,53),(104,63),(85,65),(77,77)],fill='#82464c')
- for pts in [[(54,69),(24,35-lift),(12,24)],[(54,69),(28,44)],[(54,69),(39,56)],[(59,67),(81,29+lift),(101,17)],[(59,67),(97,41)],[(59,67),(93,53)],[(59,67),(85,65)]]:d.line(pts,fill='#ba7a63',width=2)
- # Curved serrated tail, heavy torso, long neck and angular horned head.
- d.line([(56,79),(37,87),(19,83),(9,76),(8,64)],fill=INK,width=12)
- d.line([(56,79),(37,86),(19,81),(10,75),(8,64)],fill='#44434d',width=7)
- d.polygon([(46,62),(61,55),(76,58),(85,69),(79,83),(65,91),(50,84),(44,72)],fill=INK)
- d.polygon([(49,64),(62,58),(74,61),(80,70),(75,80),(65,87),(53,80),(48,71)],fill='#55525b')
- d.polygon([(65,65),(72,48),(87,42),(96,46),(95,53),(83,57),(80,71)],fill=INK)
- d.polygon([(71,64),(76,49),(87,46),(92,48),(89,52),(79,54),(77,66)],fill='#68636a')
- d.polygon([(83,44),(94,39),(101,41),(105,48),(119,52),(118,59),(108,61),(99,58),(88,56)],fill=INK)
- d.polygon([(86,46),(96,43),(100,45),(102,51),(116,54),(115,57),(107,58),(98,54),(89,53)],fill='#64616b')
- d.polygon([(88,44),(84,33),(89,36),(95,42)],fill='#b1a38a');d.polygon([(98,41),(99,31),(104,34),(104,46)],fill='#d1b997')
- for x,y in [(41,84),(49,62),(58,57),(68,57),(78,47)]:d.polygon([(x,y),(x-3,y-7),(x+4,y-1)],fill='#aa8e7a')
- # Pebbled scales and ventral plates.
- for y in range(62,80,5):
-  for x in range(51,75,6):
-   if (x-63)**2/200+(y-70)**2/130<1:d.line([(x,y),(x+2,y+1),(x+4,y)],fill='#8c7b77')
- d.line([(76,64),(71,71),(70,79)],fill='#baa082',width=3)
- d.rectangle((103,47,106,49),fill='#f7b76b');d.point((106,48),fill=HI)
- claw=frame==3
- for pts in [[(55,79),(49,94),(57,100)],[(70,82),(76,94),(86,98)]]:
-  if claw:pts=[(pts[0][0],pts[0][1]),(pts[1][0]+15,pts[1][1]-10),(pts[2][0]+17,pts[2][1]-8)]
-  d.line(pts,fill=INK,width=8);d.line(pts,fill='#6d6266',width=4)
-  x,y=pts[-1]
-  for delta in [-4,0,4]:d.line([(x+delta,y-1),(x+delta+3,y+3)],fill='#d8c4a6',width=1)
- if frame==2:
-  d.polygon([(103,55),(116,55),(120,61),(108,63),(100,59)],fill='#532934',outline=INK)
-  for x in [106,111,116]:d.polygon([(x,55),(x+2,55),(x+1,59)],fill=HI)
-  d.polygon([(116,56),(126,52),(124,59),(127,61),(117,62)],fill='#eda064');d.rectangle((120,56,125,59),fill='#ffe1a4')
- return im
+ # Legacy 128px cells remain compatible; the live wyvern uses its 192px atlas.
+ from draw_wyvern_art import wyvern
+ mode='breath' if frame==2 else 'dive' if frame==3 else 'flight'
+ return wyvern(mode,3 if frame>1 else frame*2).resize((128,128),Image.Resampling.NEAREST)
 
 def giant(frame=0):
  im=Image.new('RGBA',(128,128));d=ImageDraw.Draw(im)
@@ -136,5 +105,7 @@ def main():
  for i,im in enumerate([egg(),dragon(2),giant(3),rod(),gene(),giant(4)]):
   im=im.resize((256,256),Image.Resampling.NEAREST);preview.paste(im,(i%3*256,i//3*256),im)
  preview.save(out/'pixel-dragon-light-preview.png')
+ from draw_wyvern_art import generate
+ generate(out)
  print('Appended icons 72–76; 128px actor atlas with 12 poses. Earlier slots preserved.')
 if __name__=='__main__':main()

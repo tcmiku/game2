@@ -7,35 +7,46 @@ import math,random
 from PIL import Image,ImageDraw
 ROOT=Path(__file__).resolve().parents[1]
 
-def landscape():
-    rng=random.Random(107);im=Image.new('RGB',(1200,800),'#17262b');d=ImageDraw.Draw(im)
-    for _ in range(22000):
-        x=rng.randrange(1200);y=rng.randrange(800);d.rectangle((x,y,x+rng.randrange(2,9),y+rng.randrange(1,4)),fill=rng.choice(['#1e3033','#213537','#293b3b','#1b2c31']))
-    # A weathered crossroads, a ruined courtyard, eastern pools and southern stones.
-    for y in range(80,755,13):
-        cx=405+int(math.sin(y/83)*35)
-        for x in range(cx-35,cx+42,16):
-            d.polygon([(x,y),(x+13,y-2),(x+15,y+9),(x+1,y+11)],fill=rng.choice(['#344348','#3a4b4e','#405154']))
-            d.line([(x+2,y),(x+11,y-1)],fill='#576360')
-    for x in range(80,1125,16):
-        cy=267+int(math.sin(x/100)*22)
-        for y in range(cy-26,cy+34,13):
-            d.polygon([(x,y),(x+13,y-1),(x+14,y+9),(x+1,y+11)],fill=rng.choice(['#34474b','#3c4e50','#2d4247']))
-            d.line([(x+2,y),(x+11,y)],fill='#52625f')
-    for cx,cy in [(905,530),(950,590),(851,594)]:
-        d.ellipse((cx-58,cy-29,cx+58,cy+29),fill='#101f2c');d.ellipse((cx-52,cy-24,cx+52,cy+22),fill='#243d49')
+def landscape(width=1800,height=1200):
+    """Extend the landscape at the same pixel density, centered on the new spawn."""
+    rng=random.Random(107);im=Image.new('RGB',(width,height),'#17262b');d=ImageDraw.Draw(im)
+    density=width*height/(1200*800);cx=width//2;cy=height//2
+    for _ in range(round(22000*density)):
+        x=rng.randrange(width);y=rng.randrange(height);d.rectangle((x,y,x+rng.randrange(2,9),y+rng.randrange(1,4)),fill=rng.choice(['#1e3033','#213537','#293b3b','#1b2c31']))
+    def path(vertical=False):
+        for axis in range(75,(height if vertical else width)-65,13 if vertical else 16):
+            line=(cx+int(math.sin(axis/110)*27)) if vertical else (cy+int(math.sin(axis/140)*22))
+            for offset in range(-30,35,16 if vertical else 13):
+                x,y=(line+offset,axis) if vertical else (axis,line+offset)
+                d.polygon([(x,y),(x+13,y-2),(x+15,y+9),(x+1,y+11)],fill=rng.choice(['#344348','#3a4b4e','#405154','#2d4247']))
+                d.line([(x+2,y),(x+11,y-1)],fill='#576360')
+    path(True);path()
+    # Northern cloister: a broken walkway and low, passable column foundations.
+    for y in range(220,276,13):
+        for x in range(cx+155,width-140,16):
+            if rng.random()<.15:continue
+            d.polygon([(x,y),(x+13,y-1),(x+13,y+9),(x+1,y+10)],fill=rng.choice(['#33464b','#3b4c50','#2c4046']))
+            d.line([(x+2,y),(x+10,y)],fill='#52625f')
+    for x in range(cx+180,width-120,82):
+        for y in [203,292]:
+            d.polygon([(x-12,y),(x+11,y-3),(x+18,y+6),(x-6,y+10)],fill='#23353c')
+            d.rectangle((x-6,y-10,x+5,y+3),fill='#405358');d.line([(x-5,y-10),(x+3,y-10)],fill='#839087')
+    # East shallows and a western stone ring retain the original cold palette.
+    for px,py in [(width-330,height-330),(width-275,height-270),(width-390,height-265),(width-260,480)]:
+        d.ellipse((px-58,py-29,px+58,py+29),fill='#101f2c');d.ellipse((px-52,py-24,px+52,py+22),fill='#243d49')
         for _ in range(18):
-            x=cx+rng.randrange(-43,43);y=cy+rng.randrange(-15,16);d.line([(x,y),(x+rng.randrange(2,10),y)],fill=rng.choice(['#355460','#45606b','#2b4a58']))
-    for cx,cy in [(400,265),(800,210),(330,590)]:
+            x=px+rng.randrange(-43,43);y=py+rng.randrange(-15,16);d.line([(x,y),(x+rng.randrange(2,10),y)],fill=rng.choice(['#355460','#45606b','#2b4a58']))
+    plazas=[(cx,cy),(cx-490,cy-85),(cx+350,cy-250),(cx-100,height-180),(cx-490,height-300)]
+    for px,py in plazas:
         for radius,c in [(65,'#0d1e27'),(61,'#4c5b5c'),(55,'#273c42'),(48,'#68706b'),(45,'#2b4148')]:
-            d.ellipse((cx-radius,cy-radius//2,cx+radius,cy+radius//2),fill=c)
+            d.ellipse((px-radius,py-radius//2,px+radius,py+radius//2),fill=c)
         for k in range(12):
-            a=k*math.tau/12;x=cx+round(math.cos(a)*54);y=cy+round(math.sin(a)*26)
+            a=k*math.tau/12;x=px+round(math.cos(a)*54);y=py+round(math.sin(a)*26)
             d.line([(x-2,y-2),(x+2,y+2),(x+3,y)],fill='#a2a391')
-    # Broken columns and graves are flat scenic ruins; breakable loot uses separate sprites.
-    for _ in range(70):
-        x=rng.randrange(50,1150);y=rng.randrange(45,755)
-        if abs(x-400)<100 and abs(y-267)<65:continue
+    # Flat scenery only; random breakable loot remains host-owned World data.
+    for _ in range(round(70*density)):
+        x=rng.randrange(65,width-65);y=rng.randrange(55,height-55)
+        if abs(x-cx)<110 and abs(y-cy)<70:continue
         if rng.random()<.45:
             d.polygon([(x-6,y),(x+6,y-2),(x+14,y+9),(x+1,y+12)],fill='#0c1d27')
             d.rectangle((x-5,y-12,x+5,y+3),fill='#3a5057');d.line([(x-4,y-11),(x+3,y-11)],fill='#80918a')
@@ -43,12 +54,12 @@ def landscape():
         else:
             d.polygon([(x,y),(x+24,y-2),(x+30,y+7),(x+3,y+9)],fill='#1a2c34')
             d.polygon([(x,y-4),(x+24,y-6),(x+28,y+2),(x+3,y+5)],fill='#4c6061');d.line([(x+3,y-4),(x+22,y-5)],fill='#859084')
-    for _ in range(1800):
-        x=rng.randrange(1200);y=rng.randrange(800)
+    for _ in range(round(1800*density)):
+        x=rng.randrange(width);y=rng.randrange(height)
         d.line([(x,y),(x-2,y-4)],fill='#647359');d.line([(x+2,y),(x+3,y-3)],fill='#3d5d4e')
-    for _ in range(100):
-        x=rng.choice([rng.randrange(5,80),rng.randrange(1110,1195)]) if rng.random()<.65 else rng.randrange(1200)
-        y=rng.randrange(800) if x<80 or x>1110 else rng.choice([rng.randrange(35),rng.randrange(755,800)])
+    for _ in range(round(100*(width+height)/2000)):
+        x=rng.choice([rng.randrange(5,80),rng.randrange(width-90,width-5)]) if rng.random()<.65 else rng.randrange(width)
+        y=rng.randrange(height) if x<80 or x>width-90 else rng.choice([rng.randrange(35),rng.randrange(height-45,height)])
         d.ellipse((x-25,y-12,x+34,y+18),fill='#0b1c26')
         for dx,dy,r in [(-10,-13,18),(12,-17,21),(0,-36,20)]:
             d.polygon([(x+dx,y+dy-r),(x+dx+r,y+dy),(x+dx+7,y+dy+r//2),(x+dx-r,y+dy+3)],fill='#213e40')
@@ -128,4 +139,11 @@ def generate(out):
     glyphs.save(out/'pixel-npc-glyphs.png',optimize=True)
     print('Frontier art: map, three props, two NPC sprite rows, shield icons and four runes')
 
-if __name__=='__main__':generate(ROOT/'public'/'art')
+if __name__=='__main__':
+    import sys,re
+    if '--map-only' in sys.argv:
+        source=(ROOT/'lib/arena.mjs').read_text()
+        width=int(re.search(r'ARENA_W=(\d+)',source).group(1));height=int(re.search(r'ARENA_H=(\d+)',source).group(1));scale=int(re.search(r'ARENA_ART_SCALE=(\d+)',source).group(1))
+        landscape(width//scale,height//scale).save(ROOT/'public/art/pixel-frontier.png',optimize=True)
+        print(f'Battlefield only: {width}×{height}, native {width//scale}×{height//scale}. Other assets preserved.')
+    else:generate(ROOT/'public'/'art')

@@ -32,8 +32,8 @@ test('tethers pull targets but the thirty-minute reaper ignores crowd control',(
  w.s.zones.push({...w.s.zones[0],id:999,target:death.id});const dx=death.x;stepWeaponEntities(w,.05);assert.ok(e.x<x);assert.equal(death.x,dx);assert.equal(death.slow,0);assert.ok(p.stats.chain.damage>0);
 });
 test('saw blades remain along the movement trail and repeatedly cut nearby enemies',()=>{
- const {w,p,e}=setup('saw',65);w.step(.05);const first=w.s.zones[0],damage=p.stats.saw.damage;w.input('p',{x:0,y:1});steps(w,30);
- assert.ok(p.stats.saw.damage>damage);assert.equal(first.y,800);assert.ok(w.s.zones.some(z=>z.kind==='saw'&&z.y>first.y+100));assert.ok(w.s.zones.length<=3);assert.ok(e.hp<100000);
+ const {w,p,e}=setup('saw',65);w.step(.05);const first=w.s.zones[0],originY=p.y,damage=p.stats.saw.damage;w.input('p',{x:0,y:1});steps(w,30);
+ assert.ok(p.stats.saw.damage>damage);assert.equal(first.y,originY);assert.ok(w.s.zones.some(z=>z.kind==='saw'&&z.y>first.y+100));assert.ok(w.s.zones.length<=3);assert.ok(e.hp<100000);
 });
 test('tornadoes travel, pull nearby foes and attribute repeated damage to wind',()=>{
  const {w,p}=setup('wind',110);w.step(.05);const b=w.s.shots[0],x=b.x;steps(w,12);assert.notEqual(b.x,x);assert.ok(p.stats.wind.damage>0);assert.deepEqual(Object.keys(p.stats),['wind']);

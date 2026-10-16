@@ -63,10 +63,10 @@ export function bestiaryMotion(e,distance){
  if(e.type===11)return distance>440?1:distance<300?-.35:0;
  return 1;
 }
-export function stepBestiaryStrafe(e,target,dt){
+export function stepBestiaryStrafe(e,target,dt,bounds={}){
  stepExpandedStrafe(e,target,dt);
  if(e.type!==10||e.skill||e.frozen>0||e.stagger>0)return;
- const d=Math.max(1,dist(e,target)),speed=e.speed*.32*Math.sin((e.phase||0)*2+.8);e.x=clamp(e.x-(target.y-e.y)/d*speed*dt,70,ARENA_W-70);e.y=clamp(e.y+(target.x-e.x)/d*speed*dt,70,ARENA_H-70);
+ const d=Math.max(1,dist(e,target)),speed=e.speed*.32*Math.sin((e.phase||0)*2+.8);e.x=clamp(e.x-(target.y-e.y)/d*speed*dt,70,(bounds.width||ARENA_W)-70);e.y=clamp(e.y+(target.x-e.x)/d*speed*dt,70,(bounds.height||ARENA_H)-70);
 }
 export function bestiaryDeath(w,e){if(e.type===9)poison(w,e,e,.65,2.2);}
 export function stepBestiaryHazard(w,h,dt,hurt){

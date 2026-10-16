@@ -1,5 +1,6 @@
 import {ownsWeapon,weaponScale,weaponDuration,weaponCooldown} from './equipment.mjs';
-export const ARENA_W=3600,ARENA_H=2400;
+import {ARENA_W,ARENA_H,arenaSpawn} from './arena.mjs';
+export {ARENA_W,ARENA_H} from './arena.mjs';
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 export function collideDestructibles(entity,props){
  for(const object of props||[]){if(object.hp<=0)continue;const dx=entity.x-object.x,dy=entity.y-object.y,d=Math.hypot(dx,dy),radius=object.size+14;if(d<radius){entity.x=object.x+(d?dx/d:1)*radius;entity.y=object.y+(d?dy/d:0)*radius;}}
@@ -7,7 +8,7 @@ export function collideDestructibles(entity,props){
 /** Each host rolls one scatter layout. Rejection is bounded, even with a constant RNG. */
 export function createDestructibles(random=Math.random){
  const props=[],margin=110;
- const safe=(x,y)=>Array.from({length:4},(_,i)=>({x:1200+i*65,y:800})).every(p=>Math.hypot(x-p.x,y-p.y)>=240)&&props.every(p=>Math.hypot(x-p.x,y-p.y)>=105);
+ const safe=(x,y)=>Array.from({length:4},(_,i)=>arenaSpawn(i)).every(p=>Math.hypot(x-p.x,y-p.y)>=240)&&props.every(p=>Math.hypot(x-p.x,y-p.y)>=105);
  const add=(x,y)=>{const id=props.length,kind=id%3,hp=[38,52,28][kind];props.push({id:-id-1,prop:true,kind,x:Math.round(x),y:Math.round(y),size:[22,19,16][kind],hp,maxHp:hp,hit:0});};
  for(let attempt=0;attempt<840&&props.length<70;attempt++){const x=Math.round(margin+random()*(ARENA_W-margin*2)),y=Math.round(margin+random()*(ARENA_H-margin*2));if(safe(x,y))add(x,y);}
  // Dense enough for exploration without an unbounded retry on injected RNGs.
