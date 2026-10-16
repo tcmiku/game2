@@ -1,4 +1,5 @@
 import {ARENA_W,ARENA_H,collideDestructibles} from './frontier.mjs';
+import {swordMoveMultiplier} from './dual-swords.mjs';
 // Keep requests serial and schedule from their start, so latency isn't added to
 // the polling interval. Lobby traffic stays slow; failures back off separately.
 export const SYNC_MS=50,LOBBY_SYNC_MS=650;
@@ -75,7 +76,7 @@ export class RemoteView{
   const target={x:me.x,y:me.y},ack=me.inputAt+me.inputAge;
   // Replay only recent, unacknowledged local movement. The timestamp belongs
   // to the guest's clock; inputAge is elapsed simulation time on the host.
-  if((me.hp>0||me.ghost)&&!state.upgradePaused&&state.status==='playing'&&Number.isFinite(ack))for(const h of this.history){const dt=Math.max(0,h.to-Math.max(h.from,ack,now-.3));target.x+=h.x*me.speed*(me.ghost?.85:me.snared?.55:1)*dt;target.y+=h.y*me.speed*(me.ghost?.85:me.snared?.55:1)*dt;}
+  if((me.hp>0||me.ghost)&&!state.upgradePaused&&state.status==='playing'&&Number.isFinite(ack))for(const h of this.history){const dt=Math.max(0,h.to-Math.max(h.from,ack,now-.3));target.x+=h.x*me.speed*(me.ghost?.85:(me.snared?.55:1)*swordMoveMultiplier(me,state.time))*dt;target.y+=h.y*me.speed*(me.ghost?.85:(me.snared?.55:1)*swordMoveMultiplier(me,state.time))*dt;}
   target.x=clamp(target.x,100,(this.latest?.width||ARENA_W)-100);target.y=clamp(target.y,100,(this.latest?.height||ARENA_H)-100);if(me.hp>0)collideDestructibles(target,state.props);this.target=target;
   if(Math.hypot(target.x-this.local.x,target.y-this.local.y)>180)this.local={...target};
  }
@@ -95,7 +96,7 @@ export class RemoteView{
   const {x,y}=direction(input),moving=!!(fresh&&s.status==='playing'&&!s.upgradePaused&&(me?.hp>0||me?.ghost));
   if(moving){
    this.history.push({from:now-dt,to:now,x,y});this.history=this.history.filter(h=>h.to>now-1);
-   const dx=x*me.speed*(me.ghost?.85:me.snared?.55:1)*dt,dy=y*me.speed*(me.ghost?.85:me.snared?.55:1)*dt;this.local.x+=dx;this.local.y+=dy;if(this.target){this.target.x=clamp(this.target.x+dx,100,(this.latest?.width||ARENA_W)-100);this.target.y=clamp(this.target.y+dy,100,(this.latest?.height||ARENA_H)-100);}
+   const dx=x*me.speed*(me.ghost?.85:(me.snared?.55:1)*swordMoveMultiplier(me,s.time+Math.min(now-this.arrived,.3)))*dt,dy=y*me.speed*(me.ghost?.85:(me.snared?.55:1)*swordMoveMultiplier(me,s.time+Math.min(now-this.arrived,.3)))*dt;this.local.x+=dx;this.local.y+=dy;if(this.target){this.target.x=clamp(this.target.x+dx,100,(this.latest?.width||ARENA_W)-100);this.target.y=clamp(this.target.y+dy,100,(this.latest?.height||ARENA_H)-100);}
   }
   if(this.local&&this.target){const blend=1-Math.exp(-12*dt);this.local.x=clamp(this.local.x+(this.target.x-this.local.x)*blend,100,(this.latest?.width||ARENA_W)-100);this.local.y=clamp(this.local.y+(this.target.y-this.local.y)*blend,100,(this.latest?.height||ARENA_H)-100);}
   if(me?.hp>0&&this.local)collideDestructibles(this.local,s.props);

@@ -5,8 +5,18 @@ function launch(w,p,key,angle,extra={}){
  const scale=weaponScale(p),speed=extra.speed||580;
  w.s.shots.push({id:w.nextId(),born:w.s.time,owner:p.id,weapon:key,kind:key,sprite:ARTIFACTS[p.evolutions?.[key]]?.sprite||UPGRADES[key].sprite,x:p.x,y:p.y-10,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,angle,scale,radius:20*scale,life:1.35*weaponDuration(p),damage:p.damage,hit:[],pierce:4,...extra});
 }
+function castMemeKing(w,p,a,scale,duration,target){
+ const cats=Math.min(12,8+(p.ranks.volley||0)),horses=Math.min(7,5+(p.ranks.volley||0));
+ // All four components belong to the one remaining weapon and one stat entry.
+ for(let i=0;i<cats;i++)launch(w,p,'spincat',a+i*tau/cats,{sprite:64,royal:true,evolved:true,damage:p.damage*5.5,pierce:18,life:1.9*duration,returnAt:.8*duration});
+ const life=3.2*duration;
+ w.s.zones.push({id:w.nextId(),born:w.s.time,owner:p.id,weapon:'spincat',kind:'gugu',x:p.x,y:p.y-10,radius:420*scale,scale,damage:p.damage*3.5,life,max:life,wait:0,tick:0,elapsed:0,duration,pulses:6,interval:.48,evolved:true,royal:true,pulse:-1,hit:[],waveRadius:0,inner:0,active:false});
+ for(let i=0;i<horses;i++)launch(w,p,'spincat',a+(i-(horses-1)/2)*.18,{kind:'manbo',sprite:66,royal:true,evolved:true,speed:1200,life:1.05*duration,wait:.2+i*.06,active:false,damage:p.damage*11,pierce:32,radius:36*scale});
+ for(let i=0;i<3;i++){const distance=Math.min(420,dist(p,target)),offset=(i-1)*85*scale;launch(w,p,'spincat',a,{kind:'bananacat',sprite:67,royal:true,evolved:true,sx:p.x,sy:p.y-10,tx:p.x+Math.cos(a)*distance-Math.sin(a)*offset,ty:p.y+Math.sin(a)*distance+Math.cos(a)*offset,flight:.5+i*.09,elapsed:0,rank:5,life:1,damage:p.damage*5,active:false,duration,peels:4});}
+}
 export function stepMemeArsenal(w,p,target,cast){
  const a=target?Math.atan2(target.y-p.y,target.x-p.x):0,scale=weaponScale(p),duration=weaponDuration(p);
+ if(p.evolutions?.spincat==='memeking'){if(Math.abs(p.cooldowns.spincat||0)<1e-7)p.cooldowns.spincat=0;cast('spincat',2.4,()=>castMemeKing(w,p,a,scale,duration,target));return;}
  cast('spincat',1.8,(rank,evo)=>{const evolved=evo==='cataclysm',count=evolved?Math.min(8,5+(p.ranks.volley||0)):Math.ceil(rank/2)+(p.ranks.volley||0);for(let i=0;i<count;i++)launch(w,p,'spincat',evolved?a+i*tau/count:a+(i-(count-1)/2)*.22,{damage:p.damage*(1.2+rank*.22)*(evolved?1.5:1),pierce:evolved?14:3+rank,evolved,life:(evolved?1.8:1.35)*duration,returnAt:evolved?.75*duration:0});});
  cast('gugu',4.1,(rank,evo)=>{const evolved=evo==='polarChoir',pulses=evolved?5:rank>=4?4:3,interval=evolved?.5:.65,life=(.2+pulses*interval)*duration;w.s.zones.push({id:w.nextId(),born:w.s.time,owner:p.id,weapon:'gugu',kind:'gugu',x:p.x+Math.cos(a)*34,y:p.y-10+Math.sin(a)*34,radius:(175+rank*20)*scale*(evolved?1.3:1),scale,damage:p.damage*(.65+rank*.16)*(evolved?1.6:1),life,max:life,wait:0,tick:0,elapsed:0,duration,pulses,interval,evolved,pulse:-1,hit:[],waveRadius:0,inner:0,active:false});});
  cast('manbo',3.1,(rank,evo)=>{const evolved=evo==='dreamcavalry',count=evolved?Math.min(5,3+(p.ranks.volley||0)):1+Math.floor(rank/3)+(p.ranks.volley||0);for(let i=0;i<count;i++)launch(w,p,'manbo',a+(i-(count-1)/2)*(evolved?.13:.25),{speed:evolved?1150:1000,life:.9*duration,wait:.28+(evolved?i*.07:0),active:false,damage:p.damage*(2+rank*.4)*(evolved?1.6:1),pierce:evolved?24:6+rank,radius:(evolved?30:25)*scale,evolved});});
@@ -18,11 +28,11 @@ export function stepMemeShot(w,b,p,dt){
  if(b.kind==='bananacat'){
   b.elapsed+=dt;const t=Math.min(1,b.elapsed/b.flight);b.x=b.sx+(b.tx-b.sx)*t;b.y=b.sy+(b.ty-b.sy)*t-Math.sin(t*Math.PI)*100;b.life-=dt;
   if(t>=1){b.life=0;w.guard(p,b.weapon,{x:b.tx,y:b.ty,radius:40*b.scale});for(const e of w.targets())if(e.hp>0&&dist(e,{x:b.tx,y:b.ty})<e.size+40*b.scale)w.damage(e,b.damage,p,b,b.weapon);
-   const old=w.s.zones.filter(z=>z.owner===p.id&&z.kind==='bananaPeel'&&z.life>0);for(const z of old.slice(0,Math.max(0,old.length+b.peels-8)))z.life=0;
-   for(let i=0;i<b.peels;i++){const angle=b.evolved?i*tau/b.peels:b.angle+Math.PI/2,offset=b.evolved?55*b.scale:(i-(b.peels-1)/2)*45*b.scale,life=5*b.duration;w.s.zones.push({id:w.nextId(),born:w.s.time,owner:p.id,weapon:b.weapon,kind:'bananaPeel',evolved:b.evolved,x:Math.min(w.s.width-80,Math.max(80,b.tx+Math.cos(angle)*offset)),y:Math.min(w.s.height-80,Math.max(80,b.ty+Math.sin(angle)*offset)),angle:b.angle,scale:b.scale,radius:65*b.scale,triggerRadius:22*b.scale,damage:b.damage*1.45,life,max:life,wait:.25,tick:0,triggered:false});}
+   const old=w.s.zones.filter(z=>z.owner===p.id&&z.kind==='bananaPeel'&&z.life>0);for(const z of old.slice(0,Math.max(0,old.length+b.peels-(b.royal?12:8))))z.life=0;
+   for(let i=0;i<b.peels;i++){const angle=b.evolved?i*tau/b.peels:b.angle+Math.PI/2,offset=b.evolved?55*b.scale:(i-(b.peels-1)/2)*45*b.scale,life=5*b.duration;w.s.zones.push({id:w.nextId(),born:w.s.time,owner:p.id,weapon:b.weapon,kind:'bananaPeel',evolved:b.evolved,royal:b.royal,x:Math.min(w.s.width-80,Math.max(80,b.tx+Math.cos(angle)*offset)),y:Math.min(w.s.height-80,Math.max(80,b.ty+Math.sin(angle)*offset)),angle:b.angle,scale:b.scale,radius:(b.royal?95:65)*b.scale,triggerRadius:(b.royal?30:22)*b.scale,damage:b.damage*1.45,life,max:life,wait:.25,tick:0,triggered:false});}
   }return true;
  }
- if(b.wait>0){b.wait=Math.max(0,b.wait-dt);b.active=false;return true;}
+ if(b.wait>0){b.wait=Math.max(0,b.wait-dt);if(b.wait<1e-7)b.wait=0;b.active=false;return true;}
  if(b.kind==='spincat'&&b.evolved&&w.s.time-b.born>=b.returnAt){if(!b.recalled){b.recalled=true;b.hit=[];}const a=Math.atan2(p.y-10-b.y,p.x-b.x);b.angle=a;b.vx=Math.cos(a)*640;b.vy=Math.sin(a)*640;if(dist(b,{x:p.x,y:p.y-10})<24)b.life=0;}
  if(b.kind==='manbo'&&b.evolved&&!b.trail){b.trail=true;const life=1.15*weaponDuration(p);w.s.zones.push({id:w.nextId(),born:w.s.time,owner:p.id,weapon:b.weapon,kind:'cavalryTrail',x:b.x,y:b.y,tx:b.x+Math.cos(b.angle)*550,ty:b.y+Math.sin(b.angle)*550,radius:14*b.scale,scale:b.scale,damage:b.damage*.2,life,max:life,wait:0,tick:0});}
  b.active=true;const ox=b.x,oy=b.y;b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
@@ -39,7 +49,7 @@ export function stepMemeField(w,z,p,dt){
   if(z.pulse!==pulse){z.pulse=pulse;z.hit=[];z.waveRadius=0;}
   z.inner=Math.max(0,z.waveRadius-12*z.scale);z.waveRadius=Math.min(z.radius,phase/((z.evolved?.46:.6)*z.duration)*z.radius);
   w.guard(p,z.weapon,{kind:'ring',x:z.x,y:z.y,radius:z.waveRadius,inner:z.inner});
-  for(const e of w.targets()){const d=dist(e,z);if(e.hp>0&&!z.hit.includes(e.id)&&d<=z.waveRadius+e.size&&d>=z.inner-e.size){w.damage(e,z.damage,p,z,z.weapon);e.slow=Math.max(e.slow||0,z.evolved?1.2:.5);if(z.evolved&&!e.prop&&![4,7].includes(e.type))e.frozen=Math.max(e.frozen||0,.18);z.hit.push(e.id);}}
+  for(const e of w.targets()){const d=dist(e,z);if(e.hp>0&&!z.hit.includes(e.id)&&d<=z.waveRadius+e.size&&d>=z.inner-e.size){w.damage(e,z.damage,p,z,z.weapon);e.slow=Math.max(e.slow||0,z.evolved?1.2:.5);if(z.evolved&&!e.prop&&![4,7].includes(e.type))e.frozen=Math.max(e.frozen||0,z.royal?.35:.18);z.hit.push(e.id);}}
   return true;
  }
  if(z.kind==='bananaPeel'){
@@ -57,7 +67,7 @@ export function drawMemeShot(r,b,time,reduced=false){
  const c=r.ctx,age=Math.max(0,time-b.born),scale=b.scale||1;
  if(b.kind==='spincat'){
   const spin=reduced?0:Math.floor(age*18)*Math.PI/4;
-  ring(c,b.x,b.y,(b.evolved?31:24)*scale,b.evolved?'#bce1cf':'#b9c8b8',.4);if(!reduced){c.save();c.globalAlpha*=.2;glyph(r,b.sprite,b.x,b.y,64*scale,spin-.5);c.restore();}
+  ring(c,b.x,b.y,(b.evolved?31:24)*scale,b.royal?'#f1d58b':b.evolved?'#bce1cf':'#b9c8b8',.4);if(!reduced){c.save();c.globalAlpha*=.2;glyph(r,b.sprite,b.x,b.y,64*scale,spin-.5);c.restore();}
   glyph(r,b.sprite,b.x,b.y,64*scale,spin);return true;
  }
  if(b.kind==='manbo'){
@@ -73,7 +83,8 @@ export function drawMemeField(r,z,time,reduced=false){
  const c=r.ctx,scale=z.scale||1;
  if(z.kind==='cavalryTrail'){c.save();c.globalAlpha*=Math.max(0,z.life/z.max);c.strokeStyle='#b9b5ed';c.lineWidth=4*scale;c.beginPath();c.moveTo(z.x,z.y);c.lineTo(z.tx,z.ty);c.stroke();for(let i=0;i<8;i++){const t=i/8,x=z.x+(z.tx-z.x)*t,y=z.y+(z.ty-z.y)*t;c.fillStyle='#efe0fa';c.fillRect(x-3,y-3,6,6);}c.restore();return true;}
  if(z.kind==='gugu'){
-  glyph(r,z.evolved?65:61,z.x,z.y-8+(reduced?0:Math.sin(time*14)*2),66*scale);
+  glyph(r,z.royal?71:z.evolved?65:61,z.x,z.y-8+(reduced?0:Math.sin(time*14)*2),(z.royal?84:66)*scale);
+  if(z.royal){ring(c,z.x,z.y,48*scale,'#f1d58b',.6);for(let i=0;i<4;i++){const a=i*tau/4+(reduced?0:time*.8);glyph(r,60+i,z.x+Math.cos(a)*66*scale,z.y+Math.sin(a)*48*scale,30*scale);}}
   if(z.active){ring(c,z.x,z.y,z.waveRadius,z.evolved?'#d6bff0':'#a9cfda',.85);ring(c,z.x,z.y,Math.max(0,z.waveRadius-9*scale),'#edf2d6',.35);for(let i=0;i<6;i++){const a=i*tau/6,x=z.x+Math.cos(a)*z.waveRadius,y=z.y+Math.sin(a)*z.waveRadius;c.fillStyle='#d7e4cd';c.fillRect(Math.round(x/2)*2,Math.round(y/2)*2,3,3);}}
   return true;
  }

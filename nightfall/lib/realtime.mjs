@@ -7,7 +7,7 @@ export const STATE_HISTORY_LIMIT=64;
 const bounded=(value,min,max)=>Number.isFinite(value)?Math.max(min,Math.min(max,value)):0;
 export function cleanRealtimeInput(value={}){
  value=value&&typeof value==='object'?value:{};
- return{x:bounded(value.x,-1,1),y:bounded(value.y,-1,1),choice:typeof value.choice==='string'?value.choice.slice(0,32):'',seq:bounded(value.seq,0,Number.MAX_SAFE_INTEGER),serial:Math.floor(bounded(value.serial,0,Number.MAX_SAFE_INTEGER)),moveAt:Number.isFinite(value.moveAt)?Math.max(0,value.moveAt):undefined,draftId:typeof value.draftId==='string'?value.draftId.slice(0,180):undefined,cursor:cleanCursor(value.cursor)};
+ return{x:bounded(value.x,-1,1),y:bounded(value.y,-1,1),choice:typeof value.choice==='string'?value.choice.slice(0,32):'',seq:bounded(value.seq,0,Number.MAX_SAFE_INTEGER),skillSeq:Math.floor(bounded(value.skillSeq,0,Number.MAX_SAFE_INTEGER)),serial:Math.floor(bounded(value.serial,0,Number.MAX_SAFE_INTEGER)),moveAt:Number.isFinite(value.moveAt)?Math.max(0,value.moveAt):undefined,draftId:typeof value.draftId==='string'?value.draftId.slice(0,180):undefined,cursor:cleanCursor(value.cursor)};
 }
 export function cleanSignals(value){
  if(!Array.isArray(value))return[];

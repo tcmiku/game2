@@ -1,0 +1,7 @@
+.forge-ready-summary{display:flex;align-items:center;gap:8px;flex-shrink:0;padding:10px 12px;margin:0 1px 12px;border:1px solid #dfc17955;background:#cba95d12;color:#e5ce96;font-size:11px;letter-spacing:.5px}
+.recipe-parts.multi{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.recipe-parts.multi>div{min-width:0;gap:4px;padding:7px 5px}
+.recipe-parts.multi>div>span{min-width:0;font-size:10px;letter-spacing:0}
+.recipe-parts.multi>div>b{display:none}
+.recipe-parts.multi small{flex-shrink:0;margin-left:auto}
+@media(min-width:441px) and (max-width:760px){.recipe-parts.multi{grid-template-columns:1fr}}

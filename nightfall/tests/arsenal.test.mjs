@@ -6,8 +6,8 @@ const enemy=(id,x,y,hp=10000)=>({id,x,y,hp,maxHp:hp,type:1,size:20,speed:0,hit:0
 function world(key='blade'){const w=new World([{id:'p',weapon:key}],()=>.4);w.spawnCd=1e5;const p=w.s.players[0];w.s.enemies=[enemy(900,p.x+160,p.y)];return w;}
 function equip(p,key,rank=3){p.ranks[key]=rank;if(key==='blade')p.count=rank;if(['orbit','nova','storm'].includes(key))p[key]=rank;}
 function ready(w,r){const p=w.s.players[0];for(const part of r.weapons)equip(p,part.key,part.level);p.relics=2;return p;}
-test('all thirty-three starter weapons are selectable and do not silently equip a blade',()=>{
- assert.equal(WEAPONS.length,33);
+test('all thirty-five starter weapons are selectable and do not silently equip a blade',()=>{
+ assert.equal(WEAPONS.length,35);
  for(const key of WEAPONS){const w=world(key),p=w.s.players[0];assert.deepEqual(weaponLoadout(p),[key]);w.step(.05);assert.equal(w.s.shots.some(b=>b.weapon==='blade'),key==='blade');}
  assert.deepEqual(weaponLoadout(makePlayer('x','x',0,'invalid')),['blade']);
 });
@@ -41,8 +41,8 @@ test('scythes strike a cone; ravens dive; tracking beams damage along a segment'
 test('all unions require both exact weapon levels and a chest, consume their secondary and release a slot',()=>{
  for(const r of RECIPES.filter(r=>r.weapons)){
   const w=world(r.weapon),p=ready(w,r),second=r.weapons[1].key;
-  p.ranks[second]=2;assert.equal(w.craft('p',r.key),false);p.ranks[second]=3;p.relics=0;assert.equal(w.craft('p',r.key),false);p.relics=2;
-  const before=weaponLoadout(p).length;assert.ok(w.craft('p',r.key));assert.equal(p.relics,1);assert.equal(weaponLoadout(p).length,before-1);assert.equal(p.fused[second],r.key);
+  p.ranks[second]=r.weapons[1].level-1;assert.equal(w.craft('p',r.key),false);p.ranks[second]=r.weapons[1].level;p.relics=0;assert.equal(w.craft('p',r.key),false);p.relics=2;
+  const before=weaponLoadout(p).length;assert.ok(w.craft('p',r.key));assert.equal(p.relics,1);assert.equal(weaponLoadout(p).length,before-r.weapons.length+1);assert.equal(p.fused[second],r.key);
   assert.equal(canUpgrade(p,second),false);assert.equal(canUpgrade(p,r.weapon),false);assert.equal(w.craft('p',r.key),false);assert.equal(forgeState(p,r.key).complete,true);
   w.step(.05);assert.ok(!w.s.shots.some(b=>b.weapon===second));
  }
@@ -53,7 +53,7 @@ test('a weapon used in an evolution cannot enter another recipe or keep existing
  const x=world('bow'),q=ready(x,RECIPES.find(r=>r.key==='thunderbow'));q.stormCd=0;x.step(.05);assert.ok(x.s.effects.some(f=>f.type==='lightning'));assert.ok(x.craft('p','thunderbow'));x.s.effects=[];x.step(.05);assert.ok(!x.s.effects.some(f=>f.type==='lightning'),'consumed lightning does not cast separately');
 });
 test('all unions produce their special attacks and serialize in multiplayer snapshots',()=>{
- const expected={dijiang:w=>w.s.zones.some(z=>z.kind==='orbital'),requiem:w=>w.s.zones.filter(z=>z.kind==='bellwave').length===3,bloodfist:w=>w.s.zones.some(z=>z.kind==='punch'&&z.evolved),stormloom:w=>w.s.zones.some(z=>z.kind==='flail'&&z.evolved),solar:w=>w.s.beams.some(b=>b.kind==='solar'),inferno:w=>w.s.zones.filter(z=>z.kind==='meteor').length===3,reaper:w=>w.s.effects.some(f=>f.type==='slash'&&f.full),thunderbow:w=>w.s.shots.some(b=>b.shock),void:w=>w.s.zones.some(z=>z.kind==='void'),seraph:w=>w.s.players[0].familiars.length===3,mirrordance:w=>w.s.shots.some(b=>b.split),bastion:w=>w.s.zones.filter(z=>z.kind==='turret').length===3,soulmill:w=>w.s.zones.some(z=>z.kind==='mill'),typhoon:w=>w.s.shots.filter(b=>b.kind==='tornado'&&b.seek).length===3};
+ const expected={memeking:w=>w.s.shots.filter(b=>b.royal).length===16&&w.s.zones.some(z=>z.kind==='gugu'&&z.pulses===6),dualblades:w=>w.s.zones.some(z=>z.kind==='swordslash'&&z.dual)&&w.s.shots.filter(b=>b.kind==='swordwave'&&b.dual).length===3,dijiang:w=>w.s.zones.some(z=>z.kind==='orbital'),requiem:w=>w.s.zones.filter(z=>z.kind==='bellwave').length===3,bloodfist:w=>w.s.zones.some(z=>z.kind==='punch'&&z.evolved),stormloom:w=>w.s.zones.some(z=>z.kind==='flail'&&z.evolved),solar:w=>w.s.beams.some(b=>b.kind==='solar'),inferno:w=>w.s.zones.filter(z=>z.kind==='meteor').length===3,reaper:w=>w.s.effects.some(f=>f.type==='slash'&&f.full),thunderbow:w=>w.s.shots.some(b=>b.shock),void:w=>w.s.zones.some(z=>z.kind==='void'),seraph:w=>w.s.players[0].familiars.length===3,mirrordance:w=>w.s.shots.some(b=>b.split),bastion:w=>w.s.zones.filter(z=>z.kind==='turret').length===3,soulmill:w=>w.s.zones.some(z=>z.kind==='mill'),typhoon:w=>w.s.shots.filter(b=>b.kind==='tornado'&&b.seek).length===3};
  for(const r of RECIPES.filter(r=>r.weapons)){const w=world(r.weapon);ready(w,r);w.input('p',{choice:r.key,seq:1});w.input('p',{choice:r.key,seq:1});w.step(.05);assert.ok(expected[r.key](w),r.key);const state=JSON.parse(JSON.stringify(w.s));assert.equal(state.players[0].relics,1);assert.equal(state.players[0].evolutions[r.weapon],r.key);}
 });
 test('four players with six mixed unions stay within the room transport budget over six minutes',()=>{

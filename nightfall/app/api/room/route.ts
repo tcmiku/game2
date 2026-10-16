@@ -1,4 +1,5 @@
 import { normalizeBoons } from '../../../lib/camp.mjs';
+import {normalizeAppearance} from '../../../lib/appearance.mjs';
 import {cleanRealtimeInput,cleanSignals} from '../../../lib/realtime.mjs';
 import { WEAPONS,normalizeEffects } from '../../../lib/equipment.mjs';
 import {env} from 'cloudflare:workers';
@@ -8,7 +9,7 @@ import {MEMBER_GRACE_MS,HOST_LEASE_MS,MEMBER_ONLINE_MS,ROOM_TTL_MS} from '../../
 export const dynamic='force-dynamic';
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const positiveInteger=(value:any)=>Number.isFinite(Number(value))?Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(Number(value)))):0;
-const cleanInput=(value:any={})=>({...cleanRealtimeInput(value),boons:normalizeBoons(value.boons),effects:normalizeEffects(value.effects),weapon:WEAPONS.includes(value.weapon)?value.weapon:'blade',signals:cleanSignals(value.signals),serial:positiveInteger(value.serial)});
+const cleanInput=(value:any={})=>({...cleanRealtimeInput(value),appearance:normalizeAppearance(value.appearance),boons:normalizeBoons(value.boons),effects:normalizeEffects(value.effects),weapon:WEAPONS.includes(value.weapon)?value.weapon:'blade',signals:cleanSignals(value.signals),serial:positiveInteger(value.serial)});
 export async function POST(req:Request){
  try{
   if(Number(req.headers.get('content-length')||0)>300000)return reply({error:'数据过大'},413);
@@ -20,7 +21,7 @@ export async function POST(req:Request){
    await db.batch([db.prepare('DELETE FROM nightfall_members WHERE seen < ?').bind(now-7200000),db.prepare('DELETE FROM nightfall_rooms WHERE updated < ?').bind(now-7200000)]);
    for(let i=0;i<5;i++){code=crypto.randomUUID().replaceAll('-','').slice(0,6).toUpperCase();const created=await db.prepare('INSERT OR IGNORE INTO nightfall_rooms (code,host,status,snapshot,updated) VALUES (?,?,?,?,?)').bind(code,id,'lobby',JSON.stringify({_lease:lease,_revision:0,_tickAt:now}),now).run();if(created.meta.changes)break;code='';}
    if(!code)return reply({error:'房间繁忙，请重试'},503);
-   await db.prepare('INSERT INTO nightfall_members (id,code,token,name,input,seen) VALUES (?,?,?,?,?,?)').bind(id,code,token,String(b.name||'旅人').slice(0,12),JSON.stringify({...cleanInput({weapon:b.weapon,boons:b.boons,effects:b.effects}),slot:0}),now).run();
+   await db.prepare('INSERT INTO nightfall_members (id,code,token,name,input,seen) VALUES (?,?,?,?,?,?)').bind(id,code,token,String(b.name||'旅人').slice(0,12),JSON.stringify({...cleanInput({weapon:b.weapon,appearance:b.appearance,boons:b.boons,effects:b.effects}),slot:0}),now).run();
    return reply({code,id,token,host:true,hostId:id,lease,serial:0});
   }
   const code=String(b.code||'').toUpperCase(),id=String(b.id||''),token=String(b.token||'');
@@ -40,7 +41,7 @@ export async function POST(req:Request){
   if(b.action==='join'){
    if(room.status!=='lobby')return reply({error:'这场长夜已经开始'},409);
    const memberId=crypto.randomUUID(),memberToken=crypto.randomUUID();
-   const result=await db.prepare(`INSERT INTO nightfall_members (id,code,token,name,input,seen) SELECT ?,?,?,?,json_set(?,'$.slot',(SELECT value FROM json_each('[0,1,2,3]') WHERE value NOT IN (SELECT COALESCE(json_extract(input,'$.slot'),-1) FROM nightfall_members WHERE code=? AND seen>?) LIMIT 1)),? WHERE (SELECT COUNT(*) FROM nightfall_members WHERE code=? AND seen>?)<4 AND EXISTS(SELECT 1 FROM nightfall_rooms WHERE code=? AND status='lobby')`).bind(memberId,code,memberToken,String(b.name||'旅人').slice(0,12),JSON.stringify(cleanInput({weapon:b.weapon,boons:b.boons,effects:b.effects})),code,now-MEMBER_GRACE_MS,now,code,now-MEMBER_GRACE_MS,code).run();
+   const result=await db.prepare(`INSERT INTO nightfall_members (id,code,token,name,input,seen) SELECT ?,?,?,?,json_set(?,'$.slot',(SELECT value FROM json_each('[0,1,2,3]') WHERE value NOT IN (SELECT COALESCE(json_extract(input,'$.slot'),-1) FROM nightfall_members WHERE code=? AND seen>?) LIMIT 1)),? WHERE (SELECT COUNT(*) FROM nightfall_members WHERE code=? AND seen>?)<4 AND EXISTS(SELECT 1 FROM nightfall_rooms WHERE code=? AND status='lobby')`).bind(memberId,code,memberToken,String(b.name||'旅人').slice(0,12),JSON.stringify(cleanInput({weapon:b.weapon,appearance:b.appearance,boons:b.boons,effects:b.effects})),code,now-MEMBER_GRACE_MS,now,code,now-MEMBER_GRACE_MS,code).run();
    if(!result.meta.changes)return reply({error:'房间已满'},409);
    const saved=savedState(room);return reply({code,id:memberId,token:memberToken,host:false,hostId:room.host,lease:saved._lease||room.host,serial:0});
   }

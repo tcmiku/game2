@@ -4,6 +4,7 @@ import {castPelican,stepPelican} from './pelican.mjs';
 import { ownsWeapon, UPGRADES, weaponScale, weaponDuration, weaponCooldown } from './equipment.mjs';
 import {stepNewArsenal,stepNewShot,stepNewField} from './arsenal-extra.mjs';
 import {stepRitualArsenal,stepRitualField} from './arsenal-ritual.mjs';
+import {stepSwordArsenal,stepSwordField} from './dual-swords.mjs';
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const aim=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
 const angleDelta=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
@@ -54,6 +55,7 @@ export function stepArsenal(w,p,dt,target){
  stepMemeArsenal(w,p,target,cast);
  stepNewArsenal(w,p,dt,target,cast);
  stepRitualArsenal(w,p,dt,target,cast);
+ stepSwordArsenal(w,p,target,cast);
  if(!ownsWeapon(p,'familiar')){p.familiars=[];return;}
  const evolved=p.evolutions.familiar==='seraph',count=evolved?3:Math.ceil(p.ranks.familiar/2);
  p.familiars||=[];
@@ -106,6 +108,7 @@ export function stepWeaponEntities(w,dt){
   const p=s.players.find(p=>p.id===z.owner);z.life-=dt;z.wait-=dt;z.tick-=dt;if(!p||p.hp<=0||p.connected===false){z.life=0;continue;}
   if(z.kind==='pelican'){stepPelican(w,z,p,dt);continue;}
   if(z.wait>0)continue;
+  if(stepSwordField(w,z,p))continue;
   if(stepMemeField(w,z,p,dt))continue;
   if(stepZmdField(w,z,p,dt))continue;
   if(stepRitualField(w,z,p,dt))continue;

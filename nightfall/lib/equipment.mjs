@@ -1,6 +1,6 @@
 /** Equipment definitions shared by the host simulation and the interface. */
 export const WEAPON_LIMIT = 6;
-export const WEAPON_ATLAS_COLUMNS = 6, WEAPON_ATLAS_ROWS = 9;
+export const WEAPON_ATLAS_COLUMNS = 6, WEAPON_ATLAS_ROWS = 10;
 const weapon = (name, sub, detail, color, sprite) => ({name,sub,detail,color,sprite,icon:'blade',kind:'weapon',max:5});
 export const UPGRADES = {
  blade: weapon('月刃','扇形飞刃 · 连续穿透','飞刃数量 +1','#d6dec7',16),
@@ -36,6 +36,8 @@ export const UPGRADES = {
  gugu:weapon('咕咕嘎嘎','企鹅怪叫 · 扩散声波','声波伤害、范围与连响次数提升','#a9cfda',61),
  manbo:weapon('曼波小马','蓄力冲锋 · 贯穿敌阵','冲锋数量、穿透与伤害提升','#d8c3a0',62),
  bananacat:weapon('香蕉猫','抛掷落地 · 果皮滑倒','落地伤害与果皮数量提升','#dec578',63),
+ elucidator:weapon('阐释者','黑银长剑 · 近身剑光','斩击伤害与范围提升','#c2cce3',68),
+ darkrepulser:weapon('逐暗者','青碧长剑 · 远程剑气','剑气伤害与穿透提升','#92e3d6',69),
  renewal:{name:'复苏草',sub:'缓慢恢复生命',detail:'每秒恢复 0.3 生命',icon:'heart',color:'#9dccac',kind:'item',max:3,unlock:'herbalist',cost:35},
  ward:{name:'护心叶',sub:'减轻承受的伤害',detail:'受到伤害 -8%',icon:'ward',color:'#b7d5a2',kind:'item',max:3,unlock:'herbalist',cost:50},
  wisdom:{name:'星识残页',sub:'积累更多经验',detail:'经验获取 +15%',icon:'wisdom',color:'#c7b5e3',kind:'item',max:3,unlock:'scholar',cost:45},
@@ -59,6 +61,8 @@ export const weaponCooldown=(p,seconds)=>seconds/Math.max(.1,p.rate)*(1-(p.ranks
 export const WEAPONS = Object.keys(UPGRADES).filter(key=>UPGRADES[key].kind==='weapon');
 const union = (name, primary, secondary, sub, detail, color, sprite) => ({name,weapon:primary,weapons:[{key:primary,level:3},{key:secondary,level:3}],sub,detail,color,sprite});
 export const ARTIFACTS = {
+ dualblades:union('二刀流','elucidator','darkrepulser','黑白双剑 · 星光轮舞','强化近身连斩与三重剑气；左键旋风 3.5 秒，移速 +65%，基础冷却 12 秒','#a9e7e3',70),
+ memeking:{name:'meme之王',weapon:'spincat',weapons:[{key:'spincat',level:5},{key:'gugu',level:5},{key:'manbo',level:5},{key:'bananacat',level:5}],sub:'四梗加冕 · 万象狂欢',detail:'八方回旋猫群 · 六重冰音波 · 五列星骑冲锋 · 三连香蕉连爆',color:'#f1d58b',sprite:71},
  cataclysm:{name:'星旋猫团',weapon:'spincat',item:'haste',weaponLevel:5,itemLevel:1,sub:'群猫巡星',detail:'环形猫群 · 双程回旋穿透',color:'#bce1cf',sprite:64},
  polarChoir:{name:'极夜合唱',weapon:'gugu',item:'area',weaponLevel:5,itemLevel:1,sub:'极光安魂曲',detail:'五重冰音波 · 短暂冻结小怪',color:'#b1e1f0',sprite:65},
  dreamcavalry:{name:'星轨远征',weapon:'manbo',item:'speed',weaponLevel:5,itemLevel:1,sub:'踏星而行',detail:'多列骑兵冲锋 · 留下灼星轨迹',color:'#dfc5f1',sprite:66},
@@ -95,6 +99,10 @@ export function forgeState(player,key){
  const blocked=parts.some(part=>UPGRADES[part.key].kind==='weapon'&&(player?.fused?.[part.key]||player?.evolutions?.[part.key]))&&!complete;
  const chest=(player?.relics||0)>0,weapon=parts[0].met,item=parts[1].met;
  return{parts,weapon,item,chest,blocked,complete,ready:parts.every(p=>p.met)&&chest&&!complete&&!blocked};
+}
+/** Ready recipes stay above locked entries; completed relics remain at the end. */
+export function prioritizedRecipes(player,recipes=RECIPES){
+ return recipes.map(recipe=>({recipe,state:forgeState(player,recipe.key)})).sort((a,b)=>Number(b.state.ready)-Number(a.state.ready)||Number(a.state.complete)-Number(b.state.complete)).map(entry=>entry.recipe);
 }
 export const SMITH_WORK_MAX=3;
 export function normalizeSmithWork(value={},effects){return Object.fromEntries(SMITH_ITEMS.map(key=>[key,(!effects||effects.includes(key))?Math.max(0,Math.min(SMITH_WORK_MAX,Math.floor(Number(value?.[key])||0))):0]));}

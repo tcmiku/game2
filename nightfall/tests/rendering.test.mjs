@@ -17,6 +17,25 @@ function context(){return new Proxy({
 }, {get:(o,k)=>o[k]??(()=>{})});}
 function canvas(){return{width:1280,height:720,getBoundingClientRect:()=>({width:1280,height:720}),getContext:()=>context()};}
 function setup(){globalThis.window={matchMedia:()=>({matches:false})};globalThis.devicePixelRatio=1;globalThis.document={createElement:canvas};globalThis.Image=class{complete=true;naturalWidth=384;width=384;height=192;};return new Renderer(canvas());}
+
+test('custom clothes and hair render in camp, combat, death and takeover with a bounded atlas cache',()=>{
+ const r=setup(),w=new World([{id:'solo',appearance:{outfit:'sakura',hairstyle:'braid',hairColor:'rose'}}],()=>.4,[]),p=w.s.players[0],cr=new CampRenderer(r),camp=createCamp();
+ const look=p.appearance,strip=r.playerAtlas(0,look);assert.notEqual(strip,r.actors);assert.equal(strip,r.playerAtlas(0,{...look}));
+ r.actor(p,p.x,p.y,86,0,{player:true,flash:1});const mask=r.playerFlashAtlas(strip);assert.equal(mask.width,strip.width);assert.equal(mask.height,96);assert.equal(mask,r.playerFlashAtlas(strip));
+ for(const [width,height] of [[1280,720],[390,844]]){r.canvas.getBoundingClientRect=()=>({width,height});for(let i=0;i<40;i++){p.moving=i<20;p.attackAt=i>=20?w.s.time:undefined;w.step(.05);assert.doesNotThrow(()=>r.render(w.s,'solo',.05));assert.doesNotThrow(()=>cr.render(camp,.05,{...newProfile(),appearance:look}));}}
+ p.hp=0;assert.doesNotThrow(()=>r.render(w.s,'solo',.05));
+ for(const outfit of ['wanderer','nightcoat','knight','ranger','mage','crimson','frost','sakura'])for(const hairstyle of ['hood','short','ponytail','long','braid','bob'])r.playerAtlas(0,{outfit,hairstyle,hairColor:'ink'});
+ assert.ok(r.appearanceAtlases.size<=32);
+});
+
+test('dual blades renders rotating actor, moving light trails and both sword attacks at desktop and mobile sizes',()=>{
+ for(const reduced of [false,true])for(const [width,height] of [[1280,720],[390,844]]){
+  const r=setup(),w=new World([{id:'solo',weapon:'elucidator'}],()=>.4,[]),p=w.s.players[0];r.canvas.getBoundingClientRect=()=>({width,height});r.feedback.reducedMotion=r.weaponFX.reducedMotion=reduced;
+  p.ranks.elucidator=p.ranks.darkrepulser=3;p.relics=1;w.craft('solo','dualblades');p.hp=p.maxHp=1e6;p.nextXp=1e9;
+  w.s.enemies=[{id:900,x:p.x+120,y:p.y,type:1,hp:1e8,maxHp:1e8,speed:0,size:20,hit:0,slow:0,orbitCd:0,phase:0}];
+  w.input('solo',{x:1,y:0,skillSeq:1});for(let i=0;i<90;i++){w.step(.05);assert.doesNotThrow(()=>r.render(w.s,'solo',.05));}
+ }
+});
 test('defeating an elite leaves a drawable chest and the next frames keep rendering',()=>{
  const r=setup(),w=new World(undefined,()=>.05),p=w.s.players[0];w.spawn(5);w.damage(w.s.enemies[0],1e6,p);assert.equal(w.s.chests.length,1);
  for(let i=0;i<120;i++){p.hp=p.maxHp;p.choices=[];w.step(.05);assert.doesNotThrow(()=>r.render(w.s,p.id,.05));}

@@ -3,6 +3,7 @@ import {drawZmdField} from './zmd.mjs';
 import {drawPelican} from './pelican.mjs';
 import {ARTIFACTS,orbitBlades,weaponScale} from './equipment.mjs';
 import {drawRitualField} from './arsenal-ritual.mjs';
+import {drawSwordShot,drawSwordField} from './dual-swords.mjs';
 export const VFX_CELL=96,VFX_FRAMES=8;
 export const VFX_ROWS={crescent:0,thrust:1,flame:2,frost:3,arc:4,rune:5,burst:6,wind:7,spark:8,raven:9,slash:10,smoke:11};
 export const VFX_LIMITS={trails:128,points:6,fade:.18};
@@ -10,7 +11,7 @@ const tau=Math.PI*2,clamp=(v,a=0,b=1)=>Math.min(b,Math.max(a,v)),pixel=v=>Math.r
 const noise=(id,salt=0)=>{const n=Math.sin(id*12.9898+salt*78.233)*43758.5453;return n-Math.floor(n);};
 const age=(entity,time)=>Math.max(0,time-(entity.born??time-.2));
 const fade=entity=>clamp((entity.life??1)/.16);
-const colors={spincat:['#b9c8b8','#f1edd0'],gugu:['#a9cfda','#edf2d6'],manbo:['#d8c3a0','#f5e4bd'],bananacat:['#dec578','#f4e5af'],zmd:['#e6cc64','#f6ffdd'],pelican:['#e0bc81','#fff0c4'],bell:['#d9c58f','#f6e9bb'],gauntlet:['#cfa080','#ffe2b5'],hourglass:['#a6a9d5','#ece0f0'],bloodneedle:['#cf91a6','#f5d4db'],loom:['#90c6d9','#e1f3dd'],flail:['#bdaf94','#e8dcba'],aegis:['#a3d6e8','#edf4ce'],blade:['#b2d4c2','#f1edd0'],orbit:['#9ccdbd','#e9eed0'],nova:['#85cbdc','#e7f6e2'],storm:['#b5a7df','#f0dffc'],spear:['#dfc28c','#fff0bc'],ember:['#e7a46c','#ffe9ab'],axe:['#9fc9c5','#e9e9cb'],bow:['#b4d09d','#eef0c4'],scythe:['#b39dce','#ecdeef'],sigil:['#d4a0c7','#fae1e2'],familiar:['#96b0df','#e8e3fa'],prism:['#87d6d3','#e3fae7'],dagger:['#a8bfdd','#eef1df'],chakram:['#8cdbd1','#e8fae4'],mine:['#dfb474','#ffe5a9'],turret:['#dfa673','#ffedb2'],chain:['#ac95d2','#e5cdeb'],saw:['#cf909d','#f6d3bf'],wind:['#a7d3b8','#e9f2cd'],whip:['#bfc189','#f2e7b7']};
+const colors={elucidator:['#b5c6ed','#eff6ff'],darkrepulser:['#7ddbd1','#e4fff3'],spincat:['#b9c8b8','#f1edd0'],gugu:['#a9cfda','#edf2d6'],manbo:['#d8c3a0','#f5e4bd'],bananacat:['#dec578','#f4e5af'],zmd:['#e6cc64','#f6ffdd'],pelican:['#e0bc81','#fff0c4'],bell:['#d9c58f','#f6e9bb'],gauntlet:['#cfa080','#ffe2b5'],hourglass:['#a6a9d5','#ece0f0'],bloodneedle:['#cf91a6','#f5d4db'],loom:['#90c6d9','#e1f3dd'],flail:['#bdaf94','#e8dcba'],aegis:['#a3d6e8','#edf4ce'],blade:['#b2d4c2','#f1edd0'],orbit:['#9ccdbd','#e9eed0'],nova:['#85cbdc','#e7f6e2'],storm:['#b5a7df','#f0dffc'],spear:['#dfc28c','#fff0bc'],ember:['#e7a46c','#ffe9ab'],axe:['#9fc9c5','#e9e9cb'],bow:['#b4d09d','#eef0c4'],scythe:['#b39dce','#ecdeef'],sigil:['#d4a0c7','#fae1e2'],familiar:['#96b0df','#e8e3fa'],prism:['#87d6d3','#e3fae7'],dagger:['#a8bfdd','#eef1df'],chakram:['#8cdbd1','#e8fae4'],mine:['#dfb474','#ffe5a9'],turret:['#dfa673','#ffedb2'],chain:['#ac95d2','#e5cdeb'],saw:['#cf909d','#f6d3bf'],wind:['#a7d3b8','#e9f2cd'],whip:['#bfc189','#f2e7b7']};
 export function weaponStyle(key){const base=ARTIFACTS[key]?.weapon||key;const [color,core]=colors[base]||colors.blade;const row=['nova','hourglass'].includes(base)?'frost':['storm','prism','loom'].includes(base)?'arc':['ember','mine','turret'].includes(base)?'burst':['sigil','chain','bell'].includes(base)?'rune':['wind'].includes(base)?'wind':'spark';return{base,color,core,row,artifact:!!ARTIFACTS[key]};}
 export function vfxFrame(progress){return Math.min(7,Math.floor(clamp(progress)*8));}
 export function drawVfx(c,atlas,row,x,y,size,frame=0,angle=0,alpha=1,aspect=1){
@@ -67,6 +68,7 @@ export class WeaponVFX{
   for(const b of s.shots||[]){if(!this.visible(b.x,b.y))continue;
    const p=s.players.find(p=>p.id===b.owner),key=p?.evolutions?.[b.weapon]||b.weapon,style=weaponStyle(key),scale=b.scale||1,a=Math.atan2(b.vy,b.vx),born=age(b,time),phase=this.reducedMotion?0:(time*1.8+b.id*.13)%1;
    c.save();c.globalAlpha=this.opacity(b.owner)*fade(b);
+   if(drawSwordShot(r,b,time)){c.restore();continue;}
    if(drawMemeShot(r,b,time,this.reducedMotion)){c.restore();continue;}
    if(b.kind==='tornado'){this.drawTornado(r,b,time);c.restore();continue;}
    if(b.kind==='flask'){
@@ -146,6 +148,7 @@ export class WeaponVFX{
    if(drawZmdField(r,z,time)){c.restore();continue;}
    if(z.kind==='pelican'){drawPelican(r,z,time);c.restore();continue;}
    if(drawRitualField(r,z,time,s)){c.restore();continue;}
+   if(drawSwordField(r,z,time,s)){c.restore();continue;}
    if(z.kind==='mine')this.drawMine(r,z,time);
    else if(z.kind==='turret')this.drawTurret(r,z,time);
    else if(z.kind==='tether')this.drawChain(r,z,time);

@@ -1,6 +1,6 @@
 /** Wait for the exact images used by the renderers, including PNG decoding. */
-export const GAME_ASSET_TOTAL=27;
-export function gameImages(renderer,camp){return[renderer.arena,renderer.atlas,renderer.actors,renderer.foes,renderer.walk,renderer.hitAtlas,renderer.relicAtlas,renderer.weaponAtlas,renderer.vfxAtlas,renderer.bestiary,renderer.uiAtlas,renderer.frontierAtlas,renderer.bossAtlas,renderer.duskAtlas,camp.map,camp.sanctuaryMap,camp.sanctuaryAtlas,camp.keeper,camp.portal,camp.smith,camp.residentAtlas,...camp.npcAssets];}
+export const GAME_ASSET_TOTAL=28;
+export function gameImages(renderer,camp){return[renderer.arena,renderer.atlas,renderer.actors,renderer.wardrobe,renderer.foes,renderer.walk,renderer.hitAtlas,renderer.relicAtlas,renderer.weaponAtlas,renderer.vfxAtlas,renderer.bestiary,renderer.uiAtlas,renderer.frontierAtlas,renderer.bossAtlas,renderer.duskAtlas,camp.map,camp.sanctuaryMap,camp.sanctuaryAtlas,camp.keeper,camp.portal,camp.smith,camp.residentAtlas,...camp.npcAssets];}
 const aborted=()=>new DOMException('Loading cancelled','AbortError');
 export function waitForImage(image,{signal,timeoutMs=20000}={}){
  return new Promise((resolve,reject)=>{
