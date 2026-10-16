@@ -23,10 +23,10 @@ test('ranged enemies keep their distance, cast visible hostile orbs and damage p
  w.s.hostile=[{id:900,x:p.x-30,y:p.y,vx:500,vy:0,radius:11,damage:12,life:2}];w.step(.05);assert.equal(p.hp,88);assert.equal(w.s.hostile.length,0);
  w.s.hostile=[{id:901,x:p.x-30,y:p.y,vx:500,vy:0,radius:11,damage:12,life:2}];w.step(.05);assert.equal(p.hp,88);
 });
-test('boss rotates radial thorns, delayed ground roots and a telegraphed charge',()=>{
+test('wood king cycles five telegraphed attacks including delayed roots, charge, walls and shockwaves',()=>{
  const w=new World(),p=w.s.players[0];w.spawnCd=1e6;p.cooldown=999;p.hp=p.maxHp=1e6;const e=w.spawn(4);e.x=p.x+300;e.y=p.y;e.speed=0;e.skillCd=1;const seen=new Set();let thorns=false,roots=false,charge=false;
- for(let i=0;i<400;i++){w.step(.05);if(e.skill)seen.add(e.skill);thorns ||= w.s.hostile.some(b=>b.kind==='thorn');roots ||= w.s.hazards.some(h=>h.kind==='roots'&&h.wait>0);charge ||= e.chargeLeft>0;}
- assert.deepEqual([...seen].sort(),['charge','roots','thorns']);assert.ok(thorns&&roots&&charge);assert.ok(w.s.hostile.length<=160&&w.s.hazards.length<=48);
+ for(let i=0;i<400;i++){w.step(.05);if(e.skill)seen.add(e.skill);thorns ||= w.s.hostile.some(b=>b.kind==='thorn');roots ||= w.s.hazards.some(h=>h.kind==='bossBurst'&&h.theme==='roots'&&h.wait>0);charge ||= e.chargeLeft>0;}
+ assert.deepEqual([...seen].sort(),['charge','roots','stomp','thornwall','thorns'].sort());assert.ok(thorns&&roots&&charge);assert.ok(w.s.hostile.length<=160&&w.s.hazards.length<=48);
 });
 test('weapon stats exclude overkill and duplicate deaths, assign last blows, and sort both rankings',()=>{
  const w=new World([{id:'p'},{id:'q'}]),[p,q]=w.s.players;{const e=enemy(900,p.x+50,p.y,50);w.damage(e,30,p,p,'spear');w.damage(e,100,q,q,'bow');w.damage(e,100,q,q,'bow');}

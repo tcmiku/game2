@@ -44,3 +44,5 @@ input{border-radius:0;border-color:#b5a07945;background:#0b14246b;box-shadow:ins
 .forge-panel{display:flex;flex-direction:column;overflow:hidden}.forge-heading,.arsenal-tabs{flex-shrink:0}.weapon-grid,.recipe-grid{overflow:auto;min-height:0;align-content:start;scrollbar-width:thin;scrollbar-color:#b49a6d55 transparent;overscroll-behavior:contain;padding-bottom:5px}.weapon-grid{flex:1 1 auto}.recipe-grid{flex:1 1 auto}.weapon-card:focus-visible,.upgrade-card:focus-visible,.recipe-bottom>button:focus-visible,.primary:focus-visible,.secondary:focus-visible{outline:0;box-shadow:inset 0 0 0 2px #f4d6a0}
 
 @media(max-width:440px){.recipe-parts>div{font-size:10px}.recipe-parts small{font-size:9px}}
+
+.room-code>span{user-select:all;-webkit-user-select:all}.room-code-manual{margin:-12px 0 21px;text-align:center}.room-code-manual label{display:block;font-size:10px;line-height:1.8;color:#c0b69e}.room-code-manual input{width:100%;margin-top:7px;text-align:center;letter-spacing:5px;font-size:16px;color:#edcf96;border-color:#c5aa7350;user-select:all;-webkit-user-select:all}

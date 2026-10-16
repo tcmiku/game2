@@ -1,4 +1,5 @@
 import {shrineLoadout,stepDodge,moveDodge,cancelDodge,stepShrinePassives,shrineHit,drawShrinePlayer,dodgeRotation,drawShrineEffect} from './shrine-powers.mjs';
+import {BOSS_TUNING} from './boss-skills.mjs';
 import {arenaSpawn,arenaBounds,ARENA_URL} from './arena.mjs';
 import {drawPartyCompass} from './party-compass.mjs';
 import {WYVERN_ART} from './wyvern-presentation.mjs';
@@ -103,8 +104,8 @@ export class World {
   const x=clamp(target.x+Math.cos(a)*radius,90,(s.width||W)-90),y=clamp(target.y+Math.sin(a)*radius,90,(s.height||H)-90),stage=1+s.time/220;
   const difficulty=partyDifficulty(s),boss=type===4,reaper=type===7,cycle=Math.max(1,Math.floor(s.time/300));
   const elite=boss||reaper?0:eliteTier??(type===5?Math.min(3,1+Math.floor(s.time/600)):rollElite(s.time,this.random));
-  const hp=(reaper?1e9*s.players.length:boss?12000*difficulty.bossHealth*Math.pow(1.9,cycle-1):type===5?210*stage:((type===2?40:type===3?14:type===6?32:def?.hp||24)*stage))*(ELITE_TIERS[elite]?.health||1)*(boss||reaper?1:difficulty.health);
-  const enemy={id:uid++,x,y,type,elite,cycle,...(boss?{bossKind:bossKind(cycle),encounterPlayers:difficulty.count,skillCd:3.6}:{}),damageScale:difficulty.damage,hp,maxHp:hp,speed:reaper?780:boss?65:type===5?75:type===6?75:type===3?135:type===2?62:def?.speed||Math.min(125,46+s.time*.045),size:reaper?bossVisual({type:7}).radius:boss?bossVisual({type:4,bossKind:bossKind(cycle)}).radius:type===5?32:type===3?17:def?.size||20,hit:0,slow:0,orbitCd:0,phase:this.random()*6.28};s.enemies.push(enemy);return enemy;
+  const hp=(reaper?1e9*s.players.length:boss?BOSS_TUNING.health*difficulty.bossHealth*Math.pow(1.9,cycle-1):type===5?210*stage:((type===2?40:type===3?14:type===6?32:def?.hp||24)*stage))*(ELITE_TIERS[elite]?.health||1)*(boss||reaper?1:difficulty.health);
+  const enemy={id:uid++,x,y,type,elite,cycle,...(boss?{bossKind:bossKind(cycle),encounterPlayers:difficulty.count,skillCd:BOSS_TUNING.opening}:{}),damageScale:difficulty.damage,hp,maxHp:hp,speed:reaper?780:boss?BOSS_TUNING.speed:type===5?75:type===6?75:type===3?135:type===2?62:def?.speed||Math.min(125,46+s.time*.045),size:reaper?bossVisual({type:7}).radius:boss?bossVisual({type:4,bossKind:bossKind(cycle)}).radius:type===5?32:type===3?17:def?.size||20,hit:0,slow:0,orbitCd:0,phase:this.random()*6.28};s.enemies.push(enemy);return enemy;
  }
  damage(e,n,p,source=p,weapon='blade'){
   if(p.connected===false||p.hp<=0||e.hp<=0||!Number.isFinite(n)||n<=0)return;
@@ -157,7 +158,7 @@ export class World {
 
  }
  for(const e of s.enemies){if(e.hp<=0)continue;e.hit=Math.max(0,e.hit-dt);e.stagger=Math.max(0,(e.stagger||0)-dt);
- e.x=clamp(e.x+(e.knockX||0)*dt,70,worldWidth-70);e.y=clamp(e.y+(e.knockY||0)*dt,70,worldHeight-70);e.knockX=(e.knockX||0)*Math.exp(-12*dt);e.knockY=(e.knockY||0)*Math.exp(-12*dt);e.frozen=Math.max(0,(e.frozen||0)-dt);e.slow=Math.max(0,e.slow-dt);e.orbitCd-=dt;let target=null,nd=1e9;for(const p of s.players)if(p.hp>0&&p.connected!==false){const d=dist(p,e);if(d<nd){nd=d;target=p;}}if(!target)continue;const dx=target.x-e.x,dy=target.y-e.y,l=Math.max(1,Math.hypot(dx,dy));stepEnemyAttack(this,e,target,dt);const motion=enemyMotion(e,target,nd),speed=e.type===7?e.speed:e.frozen>0||e.stagger>0?0:e.speed*(e.slow>0?.4:1);e.x+=dx/l*speed*dt*motion;e.y+=dy/l*speed*dt*motion;stepBestiaryStrafe(e,target,dt,s);if(e.chargeLeft>0&&(e.type===4||e.frozen<=0&&e.stagger<=0)){e.chargeLeft-=dt;e.x=clamp(e.x+Math.cos(e.chargeAngle)*(e.chargeSpeed||560)*dt,70,worldWidth-70);e.y=clamp(e.y+Math.sin(e.chargeAngle)*(e.chargeSpeed||560)*dt,70,worldHeight-70);}e.moving=speed>0&&motion!==0||e.chargeLeft>0;e.face=dx<0?-1:1;
+ e.x=clamp(e.x+(e.knockX||0)*dt,70,worldWidth-70);e.y=clamp(e.y+(e.knockY||0)*dt,70,worldHeight-70);e.knockX=(e.knockX||0)*Math.exp(-12*dt);e.knockY=(e.knockY||0)*Math.exp(-12*dt);e.frozen=Math.max(0,Math.min(e.type===4?.35:Infinity,e.frozen||0)-dt);e.slow=Math.max(0,e.slow-dt);e.orbitCd-=dt;let target=null,nd=1e9;for(const p of s.players)if(p.hp>0&&p.connected!==false){const d=dist(p,e);if(d<nd){nd=d;target=p;}}if(!target)continue;const dx=target.x-e.x,dy=target.y-e.y,l=Math.max(1,Math.hypot(dx,dy));stepEnemyAttack(this,e,target,dt);const motion=enemyMotion(e,target,nd),speed=e.type===7?e.speed:e.frozen>0||e.stagger>0?0:e.speed*(e.slow>0?(e.type===4?.72:.4):1);const moveDx=target.x-e.x,moveDy=target.y-e.y,moveLength=Math.max(1,Math.hypot(moveDx,moveDy));e.x+=moveDx/moveLength*speed*dt*motion;e.y+=moveDy/moveLength*speed*dt*motion;stepBestiaryStrafe(e,target,dt,s);if(e.chargeLeft>0&&(e.type===4||e.frozen<=0&&e.stagger<=0)){e.chargeLeft-=dt;e.x=clamp(e.x+Math.cos(e.chargeAngle)*(e.chargeSpeed||560)*dt,70,worldWidth-70);e.y=clamp(e.y+Math.sin(e.chargeAngle)*(e.chargeSpeed||560)*dt,70,worldHeight-70);}e.moving=speed>0&&motion!==0||e.chargeLeft>0;e.face=dx<0?-1:1;
  // Telegraphs and follow-through are cosmetic; contact damage keeps its timing.
  if(nd<e.size+48&&e.stagger<=0&&e.frozen<=0&&target.hitCd<=0&&!target.choices.length&&(!Number.isFinite(e.attackAt)||s.time-e.attackAt>.6)){e.attackAt=s.time;e.attackAngle=Math.atan2(dy,dx);}
 
