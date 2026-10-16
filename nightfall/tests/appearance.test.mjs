@@ -3,19 +3,34 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {World} from '../lib/game.mjs';
 import {newProfile,normalizeProfile,createCamp,stepCamp,campInteraction,TENT} from '../lib/camp.mjs';
-import {OUTFITS,HAIRSTYLES,HAIR_COLORS,DEFAULT_APPEARANCE,normalizeAppearance,appearanceRow,appearanceKey,recolorHair,WARDROBE_ROWS,WARDROBE_COLUMNS,WARDROBE_CELL} from '../lib/appearance.mjs';
+import {OUTFITS,HAIRSTYLES,HAIR_COLORS,MASKS,DEFAULT_APPEARANCE,normalizeAppearance,appearanceRow,appearanceKey,maskRow,composeAppearanceAtlas,recolorHair,WARDROBE_ROWS,WARDROBE_COLUMNS,WARDROBE_CELL} from '../lib/appearance.mjs';
 import {packSnapshot,presentationPacket,unpackSnapshot} from '../lib/network.mjs';
 import {snapshotDelta,applySnapshotDelta} from '../lib/snapshot-delta.mjs';
 
 test('old camp saves gain the default appearance and saved outfits preserve all progression',()=>{
  const old={embers:231,boons:{power:2},residents:['keeper','herbalist','smith'],unlocks:['forge'],runs:8},migrated=normalizeProfile(old);
- assert.deepEqual(migrated.appearance,DEFAULT_APPEARANCE);const look={outfit:'sakura',hairstyle:'braid',hairColor:'rose'},saved=normalizeProfile(JSON.parse(JSON.stringify({...migrated,appearance:look})));
+ assert.deepEqual(migrated.appearance,DEFAULT_APPEARANCE);const look={outfit:'sakura',hairstyle:'braid',hairColor:'rose',mask:'fox'},saved=normalizeProfile(JSON.parse(JSON.stringify({...migrated,appearance:look})));
  assert.deepEqual(saved.appearance,look);assert.equal(saved.embers,231);assert.equal(saved.boons.power,2);assert.equal(saved.runs,8);assert.deepEqual(saved.unlocks,['forge']);assert.deepEqual(newProfile().appearance,DEFAULT_APPEARANCE);
 });
 test('appearance input is bounded to known choices and never retains extra fields or mutable references',()=>{
  assert.deepEqual(normalizeAppearance({outfit:'invalid',hairstyle:null,hairColor:999,hp:1e9}),DEFAULT_APPEARANCE);
- const value={outfit:'mage',hairstyle:'long',hairColor:'lilac'},copy=normalizeAppearance(value);value.outfit='knight';assert.equal(copy.outfit,'mage');assert.equal(Object.keys(copy).length,3);
- assert.deepEqual(normalizeAppearance(null),DEFAULT_APPEARANCE);assert.equal(appearanceKey(copy),'mage/long/lilac');
+ const value={outfit:'mage',hairstyle:'long',hairColor:'lilac',mask:'raven'},copy=normalizeAppearance(value);value.outfit='knight';assert.equal(copy.outfit,'mage');assert.equal(Object.keys(copy).length,4);
+ assert.deepEqual(normalizeAppearance(null),DEFAULT_APPEARANCE);assert.equal(appearanceKey(copy),'mage/long/lilac/raven');assert.equal(normalizeAppearance({mask:'invalid'}).mask,'crescent');
+});
+
+test('existing outfits gain the moon mask, while explicitly removing it survives saving',()=>{
+ const old={outfit:'frost',hairstyle:'ponytail',hairColor:'blue'},profile=normalizeProfile({...newProfile(),appearance:old,embers:87});
+ assert.deepEqual(profile.appearance,{...old,mask:'crescent'});assert.equal(profile.embers,87);
+ const saved=normalizeProfile(JSON.parse(JSON.stringify({...profile,appearance:{...profile.appearance,mask:'none'}})));assert.equal(saved.appearance.mask,'none');assert.equal(saved.appearance.outfit,'frost');
+});
+
+test('six masks use separate hood and exposed-face strips, and compose after hair recoloring',()=>{
+ assert.equal(MASKS.filter(m=>m.id!=='none').length,6);assert.equal(maskRow({mask:'fox',hairstyle:'hood'}),50);assert.equal(maskRow({mask:'fox',hairstyle:'ponytail'}),51);assert.equal(maskRow({mask:'iron',hairstyle:'braid'}),59);assert.equal(maskRow({mask:'none'}),-1);
+ const previous=globalThis.document,events=[],image={},context={imageSmoothingEnabled:false,drawImage:(...args)=>events.push(['draw',...args]),getImageData:()=>({data:new Uint8ClampedArray([191,207,192,255])}),putImageData:()=>events.push(['pixels'])};
+ globalThis.document={createElement:()=>({getContext:()=>context})};
+ try{composeAppearanceAtlas(image,{outfit:'knight',hairstyle:'braid',hairColor:'wine',mask:'fox'});assert.equal(events.length,3);assert.equal(events[0][3],1536);assert.equal(events[1][0],'pixels');assert.equal(events[2][3],4896);
+  events.length=0;composeAppearanceAtlas(image,{mask:'none'});assert.equal(events.length,2);
+ }finally{globalThis.document=previous;}
 });
 test('eight outfits and six real hair silhouettes occupy unique valid twelve-pose strips',async()=>{
  assert.equal(OUTFITS.length,8);assert.equal(HAIRSTYLES.length,6);assert.equal(HAIR_COLORS.length,8);const rows=new Set();for(const o of OUTFITS)for(const h of HAIRSTYLES)rows.add(appearanceRow({outfit:o.id,hairstyle:h.id}));
@@ -31,12 +46,12 @@ test('the existing camp tent is reachable and only offers wardrobe interaction w
  assert.equal(campInteraction(c),'tent');const before={x:c.x,y:c.y};stepCamp(c,{x:1,y:1},.05,true);assert.equal(c.x,before.x);assert.equal(c.y,before.y);
 });
 test('solo and teammates keep independent looks, without changing stats or accepting live cosmetic input',()=>{
- const one={outfit:'nightcoat',hairstyle:'short',hairColor:'ink'},two={outfit:'frost',hairstyle:'ponytail',hairColor:'blue'},w=new World([{id:'p',appearance:one},{id:'q',appearance:two}],()=>.4,[]),[p,q]=w.s.players;
+ const one={outfit:'nightcoat',hairstyle:'short',hairColor:'ink',mask:'fox'},two={outfit:'frost',hairstyle:'ponytail',hairColor:'blue',mask:'none'},w=new World([{id:'p',appearance:one},{id:'q',appearance:two}],()=>.4,[]),[p,q]=w.s.players;
  assert.deepEqual(p.appearance,one);assert.deepEqual(q.appearance,two);one.outfit='sakura';assert.equal(p.appearance.outfit,'nightcoat');assert.equal(p.hp,q.hp);assert.equal(p.damage,q.damage);assert.equal(p.speed,q.speed);
- w.input('p',{appearance:{outfit:'mage',hairstyle:'braid',hairColor:'rose'},x:0,y:0});w.step(.05);assert.equal(p.appearance.outfit,'nightcoat');
+ w.input('p',{appearance:{outfit:'mage',hairstyle:'braid',hairColor:'rose',mask:'oni'},x:0,y:0});w.step(.05);assert.equal(p.appearance.outfit,'nightcoat');assert.equal(p.appearance.mask,'fox');
 });
 test('full, presentation and delta takeover snapshots preserve the appearance of every player',()=>{
- const w=new World([{id:'p',appearance:{outfit:'mage',hairstyle:'long',hairColor:'lilac'}},{id:'q',appearance:{outfit:'crimson',hairstyle:'bob',hairColor:'wine'}}],()=>.4,[]),base=packSnapshot(w.checkpoint(),{authoritative:true});
+ const w=new World([{id:'p',appearance:{outfit:'mage',hairstyle:'long',hairColor:'lilac',mask:'iron'}},{id:'q',appearance:{outfit:'crimson',hairstyle:'bob',hairColor:'wine',mask:'fox'}}],()=>.4,[]),base=packSnapshot(w.checkpoint(),{authoritative:true});
  w.step(.05);const next=packSnapshot(w.checkpoint(),{authoritative:true}),saved=unpackSnapshot(applySnapshotDelta(base,snapshotDelta(base,next,7),7)),restored=World.restore(saved),view=unpackSnapshot(presentationPacket(next));
  for(let i=0;i<2;i++){assert.deepEqual(restored.s.players[i].appearance,w.s.players[i].appearance);assert.deepEqual(view.players[i].appearance,w.s.players[i].appearance);}
  const legacy=JSON.parse(JSON.stringify(w.checkpoint()));for(const p of legacy.players)delete p.appearance;assert.doesNotThrow(()=>World.restore(legacy).step(.05));

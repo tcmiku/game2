@@ -19,12 +19,22 @@ function canvas(){return{width:1280,height:720,getBoundingClientRect:()=>({width
 function setup(){globalThis.window={matchMedia:()=>({matches:false})};globalThis.devicePixelRatio=1;globalThis.document={createElement:canvas};globalThis.Image=class{complete=true;naturalWidth=384;width=384;height=192;};return new Renderer(canvas());}
 
 test('custom clothes and hair render in camp, combat, death and takeover with a bounded atlas cache',()=>{
- const r=setup(),w=new World([{id:'solo',appearance:{outfit:'sakura',hairstyle:'braid',hairColor:'rose'}}],()=>.4,[]),p=w.s.players[0],cr=new CampRenderer(r),camp=createCamp();
+ const r=setup(),w=new World([{id:'solo',appearance:{outfit:'sakura',hairstyle:'braid',hairColor:'rose',mask:'fox'}}],()=>.4,[]),p=w.s.players[0],cr=new CampRenderer(r),camp=createCamp();
  const look=p.appearance,strip=r.playerAtlas(0,look);assert.notEqual(strip,r.actors);assert.equal(strip,r.playerAtlas(0,{...look}));
  r.actor(p,p.x,p.y,86,0,{player:true,flash:1});const mask=r.playerFlashAtlas(strip);assert.equal(mask.width,strip.width);assert.equal(mask.height,96);assert.equal(mask,r.playerFlashAtlas(strip));
  for(const [width,height] of [[1280,720],[390,844]]){r.canvas.getBoundingClientRect=()=>({width,height});for(let i=0;i<40;i++){p.moving=i<20;p.attackAt=i>=20?w.s.time:undefined;w.step(.05);assert.doesNotThrow(()=>r.render(w.s,'solo',.05));assert.doesNotThrow(()=>cr.render(camp,.05,{...newProfile(),appearance:look}));}}
  p.hp=0;assert.doesNotThrow(()=>r.render(w.s,'solo',.05));
  for(const outfit of ['wanderer','nightcoat','knight','ranger','mage','crimson','frost','sakura'])for(const hairstyle of ['hood','short','ponytail','long','braid','bob'])r.playerAtlas(0,{outfit,hairstyle,hairColor:'ink'});
+ assert.ok(r.appearanceAtlases.size<=32);
+});
+
+test('mask changes select different atlases, follow every animation pose and support removing the mask',()=>{
+ const r=setup(),p=new World().s.players[0],base=r.playerAtlas(0,p.appearance);
+ assert.notEqual(base,r.actors);assert.equal(r.playerAtlas(0,{...p.appearance,mask:'none'}),r.actors);
+ for(const mask of ['crescent','fox','oni','raven','visor','iron','none'])for(const hairstyle of ['hood','short','ponytail','long','braid','bob']){
+  p.appearance={...p.appearance,mask,hairstyle};const source=r.playerAtlas(0,p.appearance);assert.equal(source,r.playerAtlas(0,{...p.appearance}));
+  for(let frame=0;frame<12;frame++){p.moving=frame<8;p.attackAt=frame>=8?frame*.05:undefined;assert.doesNotThrow(()=>r.actor(p,100,100,86,frame*.05,{player:true,flash:frame===10?1:0}));}
+ }
  assert.ok(r.appearanceAtlases.size<=32);
 });
 
@@ -79,7 +89,7 @@ test('elite silhouettes, ranged orbs, boss warnings and death use valid Canvas c
 test('four network player palettes render and are cached across repeated frames',()=>{
  const r=setup(),w=new World(Array.from({length:4},(_,i)=>({id:String(i),name:'同名旅人'})));
  for(let i=0;i<30;i++)assert.doesNotThrow(()=>r.render(w.s,'2',1/60,false,true));
- assert.equal(r.playerAtlases.size,3);const atlas=r.playerAtlas(2);assert.equal(r.playerAtlas(2),atlas);
+ assert.equal(r.appearanceAtlases.size,4);const atlas=r.playerAtlas(2);assert.equal(r.playerAtlas(2),atlas);
  w.s.players[1].hp=0;assert.doesNotThrow(()=>r.render(w.s,'2',1/60,false,true));
 });
 test('a transient frame error cannot cancel later frames and unmount cancels the pending frame',()=>{

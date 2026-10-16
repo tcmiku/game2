@@ -49,7 +49,7 @@ test('new enemies, elites, hazards and attack timestamps serialize for four play
  assert.ok(state.hostile.some(b=>b.kind==='bolt'));assert.ok(state.hazards.some(h=>h.kind==='spores'));assert.ok(state.enemies.some(e=>e.summoner));assert.ok(state.hostile.length<=160&&state.hazards.length<=48&&state.enemies.length<=220);
 });
 test('all new enemy poses, warnings, bullets and hazards draw finite Canvas calls',()=>{
- const context=()=>new Proxy({ellipse(...a){assert.ok(a.length>=7&&a.every(Number.isFinite)&&a[2]>=0&&a[3]>=0);},arc(...a){assert.ok(a.every(Number.isFinite)&&a[2]>=0);},createRadialGradient(){return{addColorStop(){}};}},{get:(o,k)=>o[k]??(()=>{})});
+ const context=()=>new Proxy({getImageData(){return{data:new Uint8ClampedArray(4)};},ellipse(...a){assert.ok(a.length>=7&&a.every(Number.isFinite)&&a[2]>=0&&a[3]>=0);},arc(...a){assert.ok(a.every(Number.isFinite)&&a[2]>=0);},createRadialGradient(){return{addColorStop(){}};}},{get:(o,k)=>o[k]??(()=>{})});
  const canvas=()=>({width:1280,height:720,getBoundingClientRect:()=>({width:1280,height:720}),getContext:context});globalThis.window={matchMedia:()=>({matches:false})};globalThis.document={createElement:canvas};globalThis.devicePixelRatio=1;globalThis.Image=class{complete=true;naturalWidth=1152;width=1152;height=1248;};
  const r=new Renderer(canvas()),w=new World();w.spawnCd=1e9;const p=w.s.players[0];p.ranks={};p.hp=p.maxHp=1e8;
  for(const type of Object.keys(ENEMY_TYPES).map(Number)){const e=w.spawn(type,3);e.x=p.x+110+(type-8)*40;e.y=p.y+30;e.skillCd=0;e.speed=0;}

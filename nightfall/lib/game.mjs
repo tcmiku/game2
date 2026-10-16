@@ -23,7 +23,7 @@ import {DEATH_TIME,ELITE_TIERS,rollElite,hurtPlayer,stepEnemyAttack,enemyMotion,
 import {ENEMY_TYPES,pickEnemyType,bestiaryDeath,stepBestiaryStrafe} from './bestiary.mjs';
 import {statKey,trackWeapon,recordDamage} from './combat-stats.mjs';
 import {playerStyle,playerLabel,placePlayerLabels,recolorCloth} from './player-style.mjs';
-import {normalizeAppearance,appearanceKey,isDefaultAppearance,composeAppearanceAtlas,WARDROBE_URL} from './appearance.mjs';
+import {normalizeAppearance,appearanceKey,isOriginalAppearance,composeAppearanceAtlas,WARDROBE_URL} from './appearance.mjs';
 import {stepSwordSkill,swordMoveMultiplier,swordSpinning,drawSwordPlayer} from './dual-swords.mjs';
 export { UPGRADES } from './equipment.mjs';
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -180,7 +180,7 @@ export class Renderer {
   const mask=document.createElement('canvas');mask.width=source.width;mask.height=source.height;const c=mask.getContext('2d');c.drawImage(source,0,0);c.globalCompositeOperation='source-in';c.fillStyle=ELITE_TIERS[tier].color;c.fillRect(0,0,mask.width,mask.height);this.eliteMasks.set(key,mask);return mask;
  }
  playerAtlas(index,appearance){
-  if(!isDefaultAppearance(appearance)&&this.wardrobe.complete&&this.wardrobe.naturalWidth){
+  if(!isOriginalAppearance(appearance)&&this.wardrobe.complete&&this.wardrobe.naturalWidth){
    this.appearanceAtlases??=new Map();const key=`${index||0}:${appearanceKey(appearance)}`;
    if(!this.appearanceAtlases.has(key)){this.appearanceAtlases.set(key,composeAppearanceAtlas(this.wardrobe,appearance,index));if(this.appearanceAtlases.size>32)this.appearanceAtlases.delete(this.appearanceAtlases.keys().next().value);}
    return this.appearanceAtlases.get(key);

@@ -20,17 +20,28 @@ export const HAIR_COLORS=[
  {id:'lilac',name:'星紫',color:'#a393cb',palette:['#a393cb','#e4ccef','#655a97','#bdacde']},
  {id:'rose',name:'樱粉',color:'#d6a4be',palette:['#d6a4be','#ffe3dd','#996e91','#e7bacd']},
 ];
-export const DEFAULT_APPEARANCE={outfit:'wanderer',hairstyle:'hood',hairColor:'silver'};
-export const WARDROBE_CELL=96,WARDROBE_COLUMNS=12,WARDROBE_ROWS=OUTFITS.length*HAIRSTYLES.length;
-export const WARDROBE_URL='/art/pixel-wardrobe.png?v=1';
+export const MASKS=[
+ {id:'crescent',name:'月纹面具',detail:'象牙白面 · 金色弦月',color:'#e3d9bc'},
+ {id:'fox',name:'绯纹狐面',detail:'尖耳狐面 · 绯红眼纹',color:'#dfaaa1'},
+ {id:'oni',name:'赤鬼半面',detail:'朱红护面 · 象牙獠齿',color:'#d87f75'},
+ {id:'raven',name:'夜鸦面具',detail:'黑银长喙 · 幽蓝镜片',color:'#91afc5'},
+ {id:'visor',name:'星辉眼罩',detail:'深蓝镜框 · 青碧流光',color:'#8ed9d4'},
+ {id:'iron',name:'铁卫面甲',detail:'玄铁护甲 · 黄铜格栅',color:'#c3b18a'},
+ {id:'none',name:'不戴面具',detail:'露出原本面容',color:'#a7b6ab'},
+];
+export const DEFAULT_APPEARANCE={outfit:'wanderer',hairstyle:'hood',hairColor:'silver',mask:'crescent'};
+export const WARDROBE_CELL=96,WARDROBE_COLUMNS=12,WARDROBE_BODY_ROWS=OUTFITS.length*HAIRSTYLES.length,WARDROBE_ROWS=WARDROBE_BODY_ROWS+(MASKS.length-1)*2;
+export const WARDROBE_URL='/art/pixel-wardrobe.png?v=2-masks';
 export function normalizeAppearance(value={}){return{
  outfit:OUTFITS.some(o=>o.id===value?.outfit)?value.outfit:DEFAULT_APPEARANCE.outfit,
  hairstyle:HAIRSTYLES.some(h=>h.id===value?.hairstyle)?value.hairstyle:DEFAULT_APPEARANCE.hairstyle,
  hairColor:HAIR_COLORS.some(c=>c.id===value?.hairColor)?value.hairColor:DEFAULT_APPEARANCE.hairColor,
+ mask:MASKS.some(m=>m.id===value?.mask)?value.mask:DEFAULT_APPEARANCE.mask,
 };}
-export function appearanceKey(value){const a=normalizeAppearance(value);return`${a.outfit}/${a.hairstyle}/${a.hairColor}`;}
-export const isDefaultAppearance=value=>appearanceKey(value)===appearanceKey(DEFAULT_APPEARANCE);
+export function appearanceKey(value){const a=normalizeAppearance(value);return`${a.outfit}/${a.hairstyle}/${a.hairColor}/${a.mask}`;}
+export const isOriginalAppearance=value=>appearanceKey(value)===appearanceKey({...DEFAULT_APPEARANCE,mask:'none'});
 export function appearanceRow(value){const a=normalizeAppearance(value);return OUTFITS.findIndex(o=>o.id===a.outfit)*HAIRSTYLES.length+HAIRSTYLES.findIndex(h=>h.id===a.hairstyle);}
+export function maskRow(value){const a=normalizeAppearance(value);return a.mask==='none'?-1:WARDROBE_BODY_ROWS+MASKS.findIndex(m=>m.id===a.mask)*2+(a.hairstyle==='hood'?0:1);}
 export function recolorHair(pixels,color){
  const source=HAIR_COLORS[0].palette,target=(HAIR_COLORS.find(c=>c.id===color)||HAIR_COLORS[0]).palette,hex=v=>parseInt(v.slice(1),16),palette=new Map(source.map((c,i)=>[hex(c),hex(target[i])]));
  for(let i=0;i<pixels.length;i+=4){if(!pixels[i+3])continue;const c=palette.get(pixels[i]*65536+pixels[i+1]*256+pixels[i+2]);if(c!==undefined){pixels[i]=c>>16;pixels[i+1]=c>>8&255;pixels[i+2]=c&255;}}
@@ -40,5 +51,6 @@ export function recolorHair(pixels,color){
 export function composeAppearanceAtlas(image,value,index=0){
  const a=normalizeAppearance(value),canvas=document.createElement('canvas');canvas.width=WARDROBE_CELL*WARDROBE_COLUMNS;canvas.height=WARDROBE_CELL;
  const c=canvas.getContext('2d');c.imageSmoothingEnabled=false;c.drawImage(image,0,appearanceRow(a)*WARDROBE_CELL,canvas.width,canvas.height,0,0,canvas.width,canvas.height);
- const pixels=c.getImageData(0,0,canvas.width,canvas.height);if(a.outfit==='wanderer')recolorCloth(pixels.data,index);recolorHair(pixels.data,a.hairColor);c.putImageData(pixels,0,0);return canvas;
+ const pixels=c.getImageData(0,0,canvas.width,canvas.height);if(a.outfit==='wanderer')recolorCloth(pixels.data,index);recolorHair(pixels.data,a.hairColor);c.putImageData(pixels,0,0);
+ const row=maskRow(a);if(row>=0)c.drawImage(image,0,row*WARDROBE_CELL,canvas.width,canvas.height,0,0,canvas.width,canvas.height);return canvas;
 }

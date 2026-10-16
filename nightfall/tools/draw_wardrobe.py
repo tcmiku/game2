@@ -1,4 +1,4 @@
-"""Eight outfits x six hairstyles x twelve poses, on the existing 96px grid."""
+"""Eight outfits, six hairstyles and six mask overlays on the native 96px grid."""
 from pathlib import Path
 from PIL import Image, ImageDraw
 from draw_actor_art import wanderer, pose, limb, INK, GOLD, IVORY
@@ -6,6 +6,7 @@ from draw_actor_art import wanderer, pose, limb, INK, GOLD, IVORY
 ROOT = Path(__file__).resolve().parents[1]
 OUTFITS = ['wanderer', 'nightcoat', 'knight', 'ranger', 'mage', 'crimson', 'frost', 'sakura']
 HAIR = ['hood', 'short', 'ponytail', 'long', 'braid', 'bob']
+MASKS = ['crescent', 'fox', 'oni', 'raven', 'visor', 'iron']
 TONES = [('#284b4b', '#3e7565', '#779776'), ('#202938', '#414b60', '#a7b6c9'), ('#bfc3b3', '#e4e0c9', '#f3d58d'), ('#384c3d', '#65754b', '#a8ba85'), ('#363251', '#62527f', '#a998cf'), ('#602c43', '#a04460', '#e19b99'), ('#6c9ca7', '#b9d9d9', '#edf2df'), ('#6e4b68', '#b77d9a', '#ebbad0')]
 BASE_HAIR = ['#bfcfc0', '#f0f0d4', '#8ea99e', '#c2d1bc']
 
@@ -135,8 +136,74 @@ def hairstyle(frame, style, outfit):
     return im
 
 
+def face_mask(frame, style, hood=False):
+    p=pose(frame); k,b=p['lean']+(2 if hood else 0),p['bob']
+    im=Image.new('RGBA',(96,96));d=ImageDraw.Draw(im)
+    def poly(points,c):d.polygon([(x+k,y+b) for x,y in points],fill=c)
+    def line(points,c,w=1):d.line([(x+k,y+b) for x,y in points],fill=c,width=w)
+    def box(bounds,c):x,y,r,t=bounds;d.rectangle((x+k,y+b,r+k,t+b),fill=c)
+    def ellipse(bounds,c):x,y,r,t=bounds;d.ellipse((x+k,y+b,r+k,t+b),fill=c)
+    face=[(40,20),(51,18),(59,22),(61,29),(55,36),(47,36),(39,30),(37,24)]
+    if style=='crescent':
+        poly(face,INK)
+        poly([(41,22),(51,20),(57,23),(58,29),(54,33),(48,34),(41,29),(40,24)],'#dedaca')
+        poly([(41,22),(51,20),(55,22),(49,24),(42,26)],'#faf0d8')
+        poly([(42,25),(47,24),(47,26),(44,27)],INK)
+        poly([(52,26),(57,25),(56,28),(52,28)],INK)
+        ellipse((48,20,53,25),'#b68e4f');ellipse((50,19,54,23),'#dedaca')
+        line([(50,29),(52,32),(54,30)],'#a78e6c')
+        line([(41,28),(43,31)],'#b68e4f',2)
+    elif style=='fox':
+        poly([(38,25),(37,12),(45,18),(52,18),(60,11),(62,27),(58,33),(51,37),(44,33)],INK)
+        poly([(40,24),(40,16),(46,21),(52,20),(58,15),(59,27),(56,31),(51,34),(45,31)],'#f0e5cc')
+        poly([(41,18),(44,22),(41,23)],'#b9545b');poly([(57,17),(57,22),(54,22)],'#b9545b')
+        line([(42,25),(47,26),(44,28)],'#983b4c',2)
+        line([(52,26),(57,24),(56,28)],'#983b4c',2)
+        poly([(49,29),(53,29),(51,31)],'#983b4c')
+        line([(46,30),(47,32)],'#d48075',2);line([(56,29),(54,32)],'#d48075',2)
+    elif style=='oni':
+        poly([(39,25),(44,23),(51,25),(58,23),(61,28),(58,35),(50,38),(41,34)],INK)
+        poly([(41,27),(46,26),(51,28),(57,26),(58,30),(55,34),(50,35),(44,32)],'#ad4e54')
+        line([(41,27),(46,28),(48,26)],'#ed9b76',2);line([(52,27),(57,25)],'#e9b17b',2)
+        line([(46,32),(54,32)],'#432a3a',2)
+        poly([(44,30),(47,31),(47,36),(44,34)],'#f6e1b3')
+        poly([(54,30),(57,29),(56,34),(53,36)],'#f6e1b3')
+        poly([(39,26),(38,19),(42,23),(44,25)],'#cdae72')
+        poly([(57,24),(59,18),(60,26)],'#cdae72')
+        box((49,30,51,31),'#eea17d')
+    elif style=='raven':
+        poly(face,INK)
+        poly([(41,22),(50,20),(57,23),(58,29),(52,33),(43,31),(40,27)],'#3e4d64')
+        line([(41,23),(47,22),(51,24),(57,23)],'#9ba6b6',2)
+        ellipse((43,25,48,29),INK);ellipse((44,25,47,27),'#8bd7dc')
+        ellipse((53,25,58,29),INK);ellipse((54,25,57,27),'#8bd7dc')
+        poly([(50,28),(56,27),(68,32),(57,37),(51,33)],INK)
+        poly([(53,29),(56,29),(64,32),(57,33)],'#78899d')
+        line([(54,34),(61,33)],'#4e627c')
+    elif style=='visor':
+        line([(36,25),(42,25)],INK,4)
+        poly([(39,23),(48,22),(52,24),(60,23),(61,29),(52,31),(48,29),(40,30)],INK)
+        poly([(41,24),(48,24),(52,26),(58,25),(58,28),(52,29),(48,27),(42,28)],'#439aab')
+        line([(42,24),(47,24),(52,26),(57,25)],'#c2f1df',2)
+        box((42,27,44,27),'#7adbc8');box((54,27,57,27),'#7adbc8')
+        line([(40,22),(47,21)],'#8ca7c8')
+        box((38,24,40,28),'#b8ad8c')
+    elif style=='iron':
+        poly(face,INK)
+        poly([(41,22),(51,20),(57,23),(59,29),(54,34),(47,34),(41,29)],'#647078')
+        poly([(43,23),(50,21),(53,24),(49,29),(42,27)],'#9ba49f')
+        poly([(41,25),(48,24),(49,27),(42,28)],INK)
+        poly([(52,26),(57,25),(57,28),(52,28)],INK)
+        line([(43,25),(46,25)],'#e8c778');line([(53,26),(56,26)],'#e8c778')
+        poly([(45,29),(55,29),(55,32),(51,35),(46,32)],'#303c4b')
+        for x in [47,50,53]:line([(x,30),(x,33)],'#bfa16c')
+        line([(41,23),(41,28)],'#d6c098');box((57,23,58,24),'#d6c098')
+    return im
+
+
 def generate():
-    atlas=Image.new('RGBA',(96*12,96*len(OUTFITS)*len(HAIR)))
+    body_rows=len(OUTFITS)*len(HAIR)
+    atlas=Image.new('RGBA',(96*12,96*(body_rows+len(MASKS)*2)))
     preview=Image.new('RGB',(8*160,6*160),'#142331')
     for oi,outfit in enumerate(OUTFITS):
         for hi,hair in enumerate(HAIR):
@@ -151,8 +218,21 @@ def generate():
                     tile=im.resize((160,160),Image.Resampling.NEAREST);preview.paste(tile,(oi*160,hi*160),tile)
     original=Image.open(ROOT/'public/art/pixel-actors.png').convert('RGBA')
     assert atlas.crop((0,0,1152,96)).tobytes()==original.crop((0,0,1152,96)).tobytes(),'Default hero must stay pixel-identical'
+    mask_preview=Image.new('RGB',(len(MASKS)*160,320),'#142331')
+    for mi,style in enumerate(MASKS):
+        for hi,hood in enumerate([True,False]):
+            for frame in range(12):
+                overlay=face_mask(frame,style,hood)
+                assert overlay.getbbox(),f'Empty mask: {style}, frame {frame}'
+                atlas.paste(overlay,(frame*96,(body_rows+mi*2+hi)*96))
+                if frame==0:
+                    base=atlas.crop((0,(0 if hood else 3)*96,96,(1 if hood else 4)*96))
+                    base.alpha_composite(overlay)
+                    tile=base.crop((27,5,71,47)).resize((144,144),Image.Resampling.NEAREST)
+                    mask_preview.paste(tile,(mi*160+8,hi*160+8),tile)
     atlas.save(ROOT/'public/art/pixel-wardrobe.png',optimize=True)
     preview.save(ROOT/'public/art/pixel-wardrobe-preview.png')
+    mask_preview.save(ROOT/'public/art/pixel-masks-preview.png')
 
 
 if __name__=='__main__':generate()
